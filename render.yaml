@@ -1,0 +1,29 @@
+# Despliegue gratuito en Render (Blueprint). Base de datos PostgreSQL gratuita en Neon.
+# Guía paso a paso: DESPLIEGUE.md
+services:
+  - type: web
+    name: premier-fantasy
+    runtime: node
+    plan: free
+    region: virginia
+    buildCommand: npm ci --include=dev && npm run build:render
+    startCommand: npm run start:render
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: AUTO_SYNC
+        value: "true"
+      - key: SEED_DEMO
+        value: "false"

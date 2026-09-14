@@ -1,0 +1,4787 @@
+[
+ {
+  "player": 1,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 7,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 8,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 8,
+  "gameweek": 2,
+  "price": 56
+ },
+ {
+  "player": 8,
+  "gameweek": 3,
+  "price": 57
+ },
+ {
+  "player": 8,
+  "gameweek": 4,
+  "price": 58
+ },
+ {
+  "player": 3,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 3,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 5,
+  "gameweek": 1,
+  "price": 65
+ },
+ {
+  "player": 4,
+  "gameweek": 1,
+  "price": 80
+ },
+ {
+  "player": 10,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 11,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 11,
+  "gameweek": 4,
+  "price": 54
+ },
+ {
+  "player": 12,
+  "gameweek": 1,
+  "price": 95
+ },
+ {
+  "player": 13,
+  "gameweek": 1,
+  "price": 75
+ },
+ {
+  "player": 13,
+  "gameweek": 4,
+  "price": 74
+ },
+ {
+  "player": 15,
+  "gameweek": 1,
+  "price": 65
+ },
+ {
+  "player": 15,
+  "gameweek": 2,
+  "price": 66
+ },
+ {
+  "player": 15,
+  "gameweek": 4,
+  "price": 67
+ },
+ {
+  "player": 6,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 6,
+  "gameweek": 4,
+  "price": 59
+ },
+ {
+  "player": 9,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 9,
+  "gameweek": 2,
+  "price": 54
+ },
+ {
+  "player": 9,
+  "gameweek": 4,
+  "price": 53
+ },
+ {
+  "player": 14,
+  "gameweek": 1,
+  "price": 65
+ },
+ {
+  "player": 14,
+  "gameweek": 3,
+  "price": 64
+ },
+ {
+  "player": 14,
+  "gameweek": 4,
+  "price": 63
+ },
+ {
+  "player": 2,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 2,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 17,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 17,
+  "gameweek": 3,
+  "price": 59
+ },
+ {
+  "player": 17,
+  "gameweek": 4,
+  "price": 58
+ },
+ {
+  "player": 18,
+  "gameweek": 1,
+  "price": 65
+ },
+ {
+  "player": 18,
+  "gameweek": 2,
+  "price": 64
+ },
+ {
+  "player": 18,
+  "gameweek": 3,
+  "price": 63
+ },
+ {
+  "player": 19,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 19,
+  "gameweek": 3,
+  "price": 54
+ },
+ {
+  "player": 19,
+  "gameweek": 4,
+  "price": 53
+ },
+ {
+  "player": 20,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 20,
+  "gameweek": 2,
+  "price": 54
+ },
+ {
+  "player": 20,
+  "gameweek": 4,
+  "price": 53
+ },
+ {
+  "player": 23,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 25,
+  "gameweek": 1,
+  "price": 75
+ },
+ {
+  "player": 25,
+  "gameweek": 2,
+  "price": 74
+ },
+ {
+  "player": 25,
+  "gameweek": 3,
+  "price": 73
+ },
+ {
+  "player": 25,
+  "gameweek": 4,
+  "price": 72
+ },
+ {
+  "player": 16,
+  "gameweek": 1,
+  "price": 65
+ },
+ {
+  "player": 16,
+  "gameweek": 2,
+  "price": 64
+ },
+ {
+  "player": 16,
+  "gameweek": 3,
+  "price": 63
+ },
+ {
+  "player": 31,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 31,
+  "gameweek": 3,
+  "price": 44
+ },
+ {
+  "player": 31,
+  "gameweek": 4,
+  "price": 45
+ },
+ {
+  "player": 26,
+  "gameweek": 1,
+  "price": 75
+ },
+ {
+  "player": 26,
+  "gameweek": 4,
+  "price": 76
+ },
+ {
+  "player": 557,
+  "gameweek": 1,
+  "price": 65
+ },
+ {
+  "player": 557,
+  "gameweek": 4,
+  "price": 64
+ },
+ {
+  "player": 22,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 22,
+  "gameweek": 3,
+  "price": 54
+ },
+ {
+  "player": 452,
+  "gameweek": 1,
+  "price": 70
+ },
+ {
+  "player": 452,
+  "gameweek": 2,
+  "price": 69
+ },
+ {
+  "player": 452,
+  "gameweek": 3,
+  "price": 68
+ },
+ {
+  "player": 452,
+  "gameweek": 4,
+  "price": 67
+ },
+ {
+  "player": 29,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 24,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 30,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 32,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 33,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 27,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 27,
+  "gameweek": 3,
+  "price": 59
+ },
+ {
+  "player": 34,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 35,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 36,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 41,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 41,
+  "gameweek": 4,
+  "price": 59
+ },
+ {
+  "player": 38,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 45,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 45,
+  "gameweek": 3,
+  "price": 54
+ },
+ {
+  "player": 37,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 39,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 48,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 48,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 49,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 44,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 44,
+  "gameweek": 3,
+  "price": 54
+ },
+ {
+  "player": 51,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 52,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 47,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 46,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 53,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 53,
+  "gameweek": 3,
+  "price": 59
+ },
+ {
+  "player": 50,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 54,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 55,
+  "gameweek": 1,
+  "price": 80
+ },
+ {
+  "player": 55,
+  "gameweek": 2,
+  "price": 79
+ },
+ {
+  "player": 55,
+  "gameweek": 3,
+  "price": 78
+ },
+ {
+  "player": 56,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 160,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 160,
+  "gameweek": 3,
+  "price": 59
+ },
+ {
+  "player": 160,
+  "gameweek": 4,
+  "price": 58
+ },
+ {
+  "player": 166,
+  "gameweek": 1,
+  "price": 65
+ },
+ {
+  "player": 582,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 582,
+  "gameweek": 4,
+  "price": 54
+ },
+ {
+  "player": 596,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 597,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 606,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 607,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 611,
+  "gameweek": 2,
+  "price": 45
+ },
+ {
+  "player": 58,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 630,
+  "gameweek": 3,
+  "price": 45
+ },
+ {
+  "player": 631,
+  "gameweek": 3,
+  "price": 60
+ },
+ {
+  "player": 61,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 57,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 59,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 60,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 64,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 62,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 618,
+  "gameweek": 2,
+  "price": 60
+ },
+ {
+  "player": 65,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 65,
+  "gameweek": 4,
+  "price": 44
+ },
+ {
+  "player": 68,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 68,
+  "gameweek": 4,
+  "price": 61
+ },
+ {
+  "player": 66,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 67,
+  "gameweek": 1,
+  "price": 65
+ },
+ {
+  "player": 67,
+  "gameweek": 4,
+  "price": 64
+ },
+ {
+  "player": 69,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 69,
+  "gameweek": 4,
+  "price": 61
+ },
+ {
+  "player": 70,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 72,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 72,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 73,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 63,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 63,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 75,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 79,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 77,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 77,
+  "gameweek": 3,
+  "price": 49
+ },
+ {
+  "player": 74,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 80,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 566,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 71,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 81,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 82,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 76,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 78,
+  "gameweek": 1,
+  "price": 75
+ },
+ {
+  "player": 78,
+  "gameweek": 3,
+  "price": 74
+ },
+ {
+  "player": 83,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 84,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 87,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 573,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 573,
+  "gameweek": 4,
+  "price": 44
+ },
+ {
+  "player": 88,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 88,
+  "gameweek": 2,
+  "price": 46
+ },
+ {
+  "player": 85,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 85,
+  "gameweek": 3,
+  "price": 49
+ },
+ {
+  "player": 86,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 615,
+  "gameweek": 2,
+  "price": 45
+ },
+ {
+  "player": 94,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 608,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 92,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 93,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 95,
+  "gameweek": 1,
+  "price": 65
+ },
+ {
+  "player": 95,
+  "gameweek": 4,
+  "price": 64
+ },
+ {
+  "player": 98,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 90,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 89,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 89,
+  "gameweek": 4,
+  "price": 44
+ },
+ {
+  "player": 97,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 97,
+  "gameweek": 4,
+  "price": 54
+ },
+ {
+  "player": 99,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 100,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 106,
+  "gameweek": 1,
+  "price": 80
+ },
+ {
+  "player": 106,
+  "gameweek": 4,
+  "price": 79
+ },
+ {
+  "player": 107,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 102,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 102,
+  "gameweek": 3,
+  "price": 49
+ },
+ {
+  "player": 565,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 565,
+  "gameweek": 2,
+  "price": 56
+ },
+ {
+  "player": 565,
+  "gameweek": 3,
+  "price": 57
+ },
+ {
+  "player": 96,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 109,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 108,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 620,
+  "gameweek": 2,
+  "price": 45
+ },
+ {
+  "player": 113,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 113,
+  "gameweek": 3,
+  "price": 44
+ },
+ {
+  "player": 111,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 103,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 103,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 115,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 115,
+  "gameweek": 2,
+  "price": 46
+ },
+ {
+  "player": 115,
+  "gameweek": 3,
+  "price": 47
+ },
+ {
+  "player": 115,
+  "gameweek": 4,
+  "price": 48
+ },
+ {
+  "player": 116,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 105,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 105,
+  "gameweek": 4,
+  "price": 59
+ },
+ {
+  "player": 114,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 118,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 117,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 657,
+  "gameweek": 4,
+  "price": 45
+ },
+ {
+  "player": 120,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 124,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 124,
+  "gameweek": 4,
+  "price": 56
+ },
+ {
+  "player": 121,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 121,
+  "gameweek": 4,
+  "price": 59
+ },
+ {
+  "player": 127,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 122,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 122,
+  "gameweek": 3,
+  "price": 59
+ },
+ {
+  "player": 123,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 123,
+  "gameweek": 4,
+  "price": 59
+ },
+ {
+  "player": 130,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 119,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 125,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 125,
+  "gameweek": 4,
+  "price": 54
+ },
+ {
+  "player": 126,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 129,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 129,
+  "gameweek": 3,
+  "price": 54
+ },
+ {
+  "player": 128,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 132,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 134,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 135,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 135,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 504,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 137,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 137,
+  "gameweek": 4,
+  "price": 54
+ },
+ {
+  "player": 138,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 139,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 605,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 133,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 594,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 600,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 614,
+  "gameweek": 2,
+  "price": 45
+ },
+ {
+  "player": 639,
+  "gameweek": 3,
+  "price": 55
+ },
+ {
+  "player": 652,
+  "gameweek": 3,
+  "price": 55
+ },
+ {
+  "player": 328,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 40,
+  "gameweek": 1,
+  "price": 75
+ },
+ {
+  "player": 40,
+  "gameweek": 4,
+  "price": 76
+ },
+ {
+  "player": 40,
+  "gameweek": 4,
+  "price": 77
+ },
+ {
+  "player": 658,
+  "gameweek": 4,
+  "price": 45
+ },
+ {
+  "player": 28,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 136,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 136,
+  "gameweek": 3,
+  "price": 59
+ },
+ {
+  "player": 142,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 142,
+  "gameweek": 4,
+  "price": 54
+ },
+ {
+  "player": 624,
+  "gameweek": 2,
+  "price": 50
+ },
+ {
+  "player": 101,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 101,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 140,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 140,
+  "gameweek": 3,
+  "price": 49
+ },
+ {
+  "player": 141,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 144,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 143,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 146,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 148,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 149,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 149,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 150,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 151,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 156,
+  "gameweek": 1,
+  "price": 65
+ },
+ {
+  "player": 154,
+  "gameweek": 1,
+  "price": 95
+ },
+ {
+  "player": 154,
+  "gameweek": 3,
+  "price": 96
+ },
+ {
+  "player": 154,
+  "gameweek": 4,
+  "price": 97
+ },
+ {
+  "player": 159,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 159,
+  "gameweek": 3,
+  "price": 54
+ },
+ {
+  "player": 152,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 152,
+  "gameweek": 3,
+  "price": 54
+ },
+ {
+  "player": 152,
+  "gameweek": 4,
+  "price": 53
+ },
+ {
+  "player": 145,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 161,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 165,
+  "gameweek": 1,
+  "price": 75
+ },
+ {
+  "player": 165,
+  "gameweek": 2,
+  "price": 76
+ },
+ {
+  "player": 165,
+  "gameweek": 3,
+  "price": 77
+ },
+ {
+  "player": 165,
+  "gameweek": 4,
+  "price": 78
+ },
+ {
+  "player": 163,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 168,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 170,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 200,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 158,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 158,
+  "gameweek": 3,
+  "price": 59
+ },
+ {
+  "player": 157,
+  "gameweek": 1,
+  "price": 65
+ },
+ {
+  "player": 157,
+  "gameweek": 3,
+  "price": 64
+ },
+ {
+  "player": 157,
+  "gameweek": 4,
+  "price": 63
+ },
+ {
+  "player": 164,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 164,
+  "gameweek": 3,
+  "price": 54
+ },
+ {
+  "player": 164,
+  "gameweek": 4,
+  "price": 53
+ },
+ {
+  "player": 561,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 568,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 169,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 110,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 91,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 173,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 104,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 104,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 171,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 172,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 175,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 560,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 560,
+  "gameweek": 4,
+  "price": 44
+ },
+ {
+  "player": 583,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 583,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 174,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 176,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 177,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 179,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 178,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 180,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 182,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 183,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 185,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 185,
+  "gameweek": 3,
+  "price": 49
+ },
+ {
+  "player": 186,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 186,
+  "gameweek": 3,
+  "price": 54
+ },
+ {
+  "player": 181,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 187,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 187,
+  "gameweek": 3,
+  "price": 49
+ },
+ {
+  "player": 189,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 184,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 184,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 191,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 192,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 194,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 193,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 193,
+  "gameweek": 3,
+  "price": 54
+ },
+ {
+  "player": 188,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 188,
+  "gameweek": 3,
+  "price": 54
+ },
+ {
+  "player": 195,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 196,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 197,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 190,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 190,
+  "gameweek": 4,
+  "price": 54
+ },
+ {
+  "player": 623,
+  "gameweek": 2,
+  "price": 40
+ },
+ {
+  "player": 492,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 584,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 584,
+  "gameweek": 4,
+  "price": 54
+ },
+ {
+  "player": 575,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 575,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 599,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 198,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 655,
+  "gameweek": 4,
+  "price": 55
+ },
+ {
+  "player": 42,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 153,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 204,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 202,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 203,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 203,
+  "gameweek": 3,
+  "price": 49
+ },
+ {
+  "player": 656,
+  "gameweek": 4,
+  "price": 40
+ },
+ {
+  "player": 206,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 206,
+  "gameweek": 3,
+  "price": 44
+ },
+ {
+  "player": 207,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 207,
+  "gameweek": 3,
+  "price": 44
+ },
+ {
+  "player": 199,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 212,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 214,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 210,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 213,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 213,
+  "gameweek": 3,
+  "price": 49
+ },
+ {
+  "player": 205,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 208,
+  "gameweek": 1,
+  "price": 65
+ },
+ {
+  "player": 208,
+  "gameweek": 2,
+  "price": 64
+ },
+ {
+  "player": 208,
+  "gameweek": 3,
+  "price": 63
+ },
+ {
+  "player": 208,
+  "gameweek": 4,
+  "price": 62
+ },
+ {
+  "player": 215,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 216,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 218,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 218,
+  "gameweek": 3,
+  "price": 49
+ },
+ {
+  "player": 219,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 219,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 220,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 211,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 223,
+  "gameweek": 1,
+  "price": 65
+ },
+ {
+  "player": 223,
+  "gameweek": 3,
+  "price": 64
+ },
+ {
+  "player": 223,
+  "gameweek": 4,
+  "price": 63
+ },
+ {
+  "player": 217,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 217,
+  "gameweek": 3,
+  "price": 49
+ },
+ {
+  "player": 224,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 221,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 225,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 555,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 588,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 222,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 633,
+  "gameweek": 3,
+  "price": 45
+ },
+ {
+  "player": 241,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 241,
+  "gameweek": 4,
+  "price": 54
+ },
+ {
+  "player": 643,
+  "gameweek": 3,
+  "price": 45
+ },
+ {
+  "player": 644,
+  "gameweek": 3,
+  "price": 50
+ },
+ {
+  "player": 577,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 595,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 209,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 209,
+  "gameweek": 3,
+  "price": 59
+ },
+ {
+  "player": 647,
+  "gameweek": 3,
+  "price": 55
+ },
+ {
+  "player": 226,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 21,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 21,
+  "gameweek": 3,
+  "price": 49
+ },
+ {
+  "player": 229,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 229,
+  "gameweek": 4,
+  "price": 61
+ },
+ {
+  "player": 227,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 233,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 231,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 231,
+  "gameweek": 3,
+  "price": 49
+ },
+ {
+  "player": 231,
+  "gameweek": 4,
+  "price": 48
+ },
+ {
+  "player": 232,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 232,
+  "gameweek": 3,
+  "price": 49
+ },
+ {
+  "player": 236,
+  "gameweek": 1,
+  "price": 65
+ },
+ {
+  "player": 235,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 228,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 242,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 230,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 234,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 243,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 243,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 239,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 245,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 245,
+  "gameweek": 3,
+  "price": 54
+ },
+ {
+  "player": 238,
+  "gameweek": 1,
+  "price": 65
+ },
+ {
+  "player": 249,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 249,
+  "gameweek": 4,
+  "price": 56
+ },
+ {
+  "player": 247,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 654,
+  "gameweek": 3,
+  "price": 45
+ },
+ {
+  "player": 244,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 246,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 246,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 248,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 248,
+  "gameweek": 3,
+  "price": 54
+ },
+ {
+  "player": 649,
+  "gameweek": 3,
+  "price": 45
+ },
+ {
+  "player": 254,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 250,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 252,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 253,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 256,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 256,
+  "gameweek": 4,
+  "price": 44
+ },
+ {
+  "player": 257,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 263,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 263,
+  "gameweek": 3,
+  "price": 54
+ },
+ {
+  "player": 263,
+  "gameweek": 4,
+  "price": 53
+ },
+ {
+  "player": 251,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 258,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 261,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 261,
+  "gameweek": 4,
+  "price": 54
+ },
+ {
+  "player": 268,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 262,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 262,
+  "gameweek": 4,
+  "price": 54
+ },
+ {
+  "player": 255,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 270,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 270,
+  "gameweek": 4,
+  "price": 44
+ },
+ {
+  "player": 266,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 272,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 269,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 269,
+  "gameweek": 4,
+  "price": 44
+ },
+ {
+  "player": 569,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 271,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 271,
+  "gameweek": 4,
+  "price": 54
+ },
+ {
+  "player": 265,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 265,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 264,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 626,
+  "gameweek": 2,
+  "price": 45
+ },
+ {
+  "player": 610,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 636,
+  "gameweek": 3,
+  "price": 50
+ },
+ {
+  "player": 650,
+  "gameweek": 3,
+  "price": 45
+ },
+ {
+  "player": 635,
+  "gameweek": 3,
+  "price": 50
+ },
+ {
+  "player": 570,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 570,
+  "gameweek": 4,
+  "price": 54
+ },
+ {
+  "player": 240,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 580,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 277,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 277,
+  "gameweek": 4,
+  "price": 41
+ },
+ {
+  "player": 273,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 279,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 279,
+  "gameweek": 3,
+  "price": 41
+ },
+ {
+  "player": 279,
+  "gameweek": 4,
+  "price": 42
+ },
+ {
+  "player": 276,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 274,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 278,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 278,
+  "gameweek": 4,
+  "price": 39
+ },
+ {
+  "player": 282,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 280,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 281,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 275,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 284,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 285,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 286,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 290,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 287,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 283,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 291,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 289,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 288,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 292,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 292,
+  "gameweek": 3,
+  "price": 49
+ },
+ {
+  "player": 295,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 294,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 297,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 299,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 298,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 293,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 572,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 572,
+  "gameweek": 3,
+  "price": 46
+ },
+ {
+  "player": 340,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 556,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 563,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 586,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 586,
+  "gameweek": 4,
+  "price": 41
+ },
+ {
+  "player": 296,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 574,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 574,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 589,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 632,
+  "gameweek": 3,
+  "price": 50
+ },
+ {
+  "player": 637,
+  "gameweek": 3,
+  "price": 50
+ },
+ {
+  "player": 585,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 259,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 617,
+  "gameweek": 2,
+  "price": 50
+ },
+ {
+  "player": 642,
+  "gameweek": 3,
+  "price": 55
+ },
+ {
+  "player": 576,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 300,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 300,
+  "gameweek": 4,
+  "price": 44
+ },
+ {
+  "player": 301,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 645,
+  "gameweek": 3,
+  "price": 50
+ },
+ {
+  "player": 267,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 304,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 305,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 302,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 638,
+  "gameweek": 3,
+  "price": 40
+ },
+ {
+  "player": 308,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 306,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 303,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 303,
+  "gameweek": 4,
+  "price": 39
+ },
+ {
+  "player": 309,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 312,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 311,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 316,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 313,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 313,
+  "gameweek": 4,
+  "price": 54
+ },
+ {
+  "player": 307,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 314,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 314,
+  "gameweek": 3,
+  "price": 49
+ },
+ {
+  "player": 315,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 310,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 310,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 320,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 321,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 319,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 317,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 322,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 318,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 318,
+  "gameweek": 3,
+  "price": 54
+ },
+ {
+  "player": 324,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 324,
+  "gameweek": 3,
+  "price": 49
+ },
+ {
+  "player": 323,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 562,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 562,
+  "gameweek": 4,
+  "price": 54
+ },
+ {
+  "player": 571,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 571,
+  "gameweek": 3,
+  "price": 49
+ },
+ {
+  "player": 591,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 564,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 554,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 592,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 260,
+  "gameweek": 1,
+  "price": 65
+ },
+ {
+  "player": 260,
+  "gameweek": 3,
+  "price": 64
+ },
+ {
+  "player": 260,
+  "gameweek": 4,
+  "price": 63
+ },
+ {
+  "player": 619,
+  "gameweek": 2,
+  "price": 50
+ },
+ {
+  "player": 329,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 329,
+  "gameweek": 4,
+  "price": 44
+ },
+ {
+  "player": 330,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 640,
+  "gameweek": 3,
+  "price": 55
+ },
+ {
+  "player": 327,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 326,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 335,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 331,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 333,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 332,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 602,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 338,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 338,
+  "gameweek": 4,
+  "price": 54
+ },
+ {
+  "player": 336,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 336,
+  "gameweek": 3,
+  "price": 59
+ },
+ {
+  "player": 336,
+  "gameweek": 4,
+  "price": 58
+ },
+ {
+  "player": 341,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 339,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 339,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 342,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 334,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 343,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 343,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 346,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 344,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 385,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 349,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 347,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 347,
+  "gameweek": 4,
+  "price": 54
+ },
+ {
+  "player": 598,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 337,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 337,
+  "gameweek": 4,
+  "price": 54
+ },
+ {
+  "player": 348,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 345,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 345,
+  "gameweek": 3,
+  "price": 49
+ },
+ {
+  "player": 603,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 604,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 629,
+  "gameweek": 3,
+  "price": 40
+ },
+ {
+  "player": 625,
+  "gameweek": 2,
+  "price": 40
+ },
+ {
+  "player": 350,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 354,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 648,
+  "gameweek": 3,
+  "price": 50
+ },
+ {
+  "player": 351,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 351,
+  "gameweek": 3,
+  "price": 49
+ },
+ {
+  "player": 352,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 353,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 356,
+  "gameweek": 1,
+  "price": 65
+ },
+ {
+  "player": 641,
+  "gameweek": 3,
+  "price": 45
+ },
+ {
+  "player": 357,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 357,
+  "gameweek": 4,
+  "price": 54
+ },
+ {
+  "player": 360,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 362,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 355,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 359,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 359,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 358,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 358,
+  "gameweek": 4,
+  "price": 54
+ },
+ {
+  "player": 361,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 364,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 364,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 365,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 366,
+  "gameweek": 1,
+  "price": 75
+ },
+ {
+  "player": 366,
+  "gameweek": 4,
+  "price": 74
+ },
+ {
+  "player": 367,
+  "gameweek": 1,
+  "price": 70
+ },
+ {
+  "player": 367,
+  "gameweek": 3,
+  "price": 71
+ },
+ {
+  "player": 367,
+  "gameweek": 4,
+  "price": 72
+ },
+ {
+  "player": 372,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 372,
+  "gameweek": 4,
+  "price": 54
+ },
+ {
+  "player": 371,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 371,
+  "gameweek": 4,
+  "price": 59
+ },
+ {
+  "player": 369,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 369,
+  "gameweek": 3,
+  "price": 59
+ },
+ {
+  "player": 369,
+  "gameweek": 4,
+  "price": 58
+ },
+ {
+  "player": 373,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 368,
+  "gameweek": 1,
+  "price": 70
+ },
+ {
+  "player": 376,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 363,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 370,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 370,
+  "gameweek": 3,
+  "price": 54
+ },
+ {
+  "player": 374,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 374,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 379,
+  "gameweek": 1,
+  "price": 90
+ },
+ {
+  "player": 379,
+  "gameweek": 4,
+  "price": 91
+ },
+ {
+  "player": 377,
+  "gameweek": 1,
+  "price": 65
+ },
+ {
+  "player": 375,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 375,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 378,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 380,
+  "gameweek": 1,
+  "price": 75
+ },
+ {
+  "player": 380,
+  "gameweek": 4,
+  "price": 74
+ },
+ {
+  "player": 579,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 579,
+  "gameweek": 3,
+  "price": 54
+ },
+ {
+  "player": 627,
+  "gameweek": 3,
+  "price": 80
+ },
+ {
+  "player": 237,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 237,
+  "gameweek": 4,
+  "price": 59
+ },
+ {
+  "player": 155,
+  "gameweek": 1,
+  "price": 70
+ },
+ {
+  "player": 155,
+  "gameweek": 3,
+  "price": 69
+ },
+ {
+  "player": 382,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 384,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 388,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 387,
+  "gameweek": 1,
+  "price": 65
+ },
+ {
+  "player": 387,
+  "gameweek": 4,
+  "price": 64
+ },
+ {
+  "player": 390,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 381,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 391,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 391,
+  "gameweek": 3,
+  "price": 56
+ },
+ {
+  "player": 391,
+  "gameweek": 4,
+  "price": 57
+ },
+ {
+  "player": 389,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 389,
+  "gameweek": 3,
+  "price": 59
+ },
+ {
+  "player": 393,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 392,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 392,
+  "gameweek": 3,
+  "price": 54
+ },
+ {
+  "player": 392,
+  "gameweek": 4,
+  "price": 53
+ },
+ {
+  "player": 394,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 395,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 395,
+  "gameweek": 4,
+  "price": 44
+ },
+ {
+  "player": 386,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 396,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 397,
+  "gameweek": 1,
+  "price": 85
+ },
+ {
+  "player": 397,
+  "gameweek": 4,
+  "price": 84
+ },
+ {
+  "player": 398,
+  "gameweek": 1,
+  "price": 70
+ },
+ {
+  "player": 383,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 383,
+  "gameweek": 3,
+  "price": 54
+ },
+ {
+  "player": 399,
+  "gameweek": 1,
+  "price": 75
+ },
+ {
+  "player": 399,
+  "gameweek": 3,
+  "price": 77
+ },
+ {
+  "player": 399,
+  "gameweek": 4,
+  "price": 78
+ },
+ {
+  "player": 400,
+  "gameweek": 1,
+  "price": 75
+ },
+ {
+  "player": 400,
+  "gameweek": 3,
+  "price": 74
+ },
+ {
+  "player": 407,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 407,
+  "gameweek": 3,
+  "price": 49
+ },
+ {
+  "player": 406,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 406,
+  "gameweek": 4,
+  "price": 54
+ },
+ {
+  "player": 402,
+  "gameweek": 1,
+  "price": 65
+ },
+ {
+  "player": 408,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 481,
+  "gameweek": 1,
+  "price": 65
+ },
+ {
+  "player": 481,
+  "gameweek": 2,
+  "price": 64
+ },
+ {
+  "player": 481,
+  "gameweek": 4,
+  "price": 63
+ },
+ {
+  "player": 411,
+  "gameweek": 1,
+  "price": 155
+ },
+ {
+  "player": 410,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 410,
+  "gameweek": 3,
+  "price": 49
+ },
+ {
+  "player": 587,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 616,
+  "gameweek": 2,
+  "price": 55
+ },
+ {
+  "player": 404,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 409,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 43,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 43,
+  "gameweek": 3,
+  "price": 59
+ },
+ {
+  "player": 628,
+  "gameweek": 3,
+  "price": 60
+ },
+ {
+  "player": 621,
+  "gameweek": 2,
+  "price": 45
+ },
+ {
+  "player": 622,
+  "gameweek": 2,
+  "price": 40
+ },
+ {
+  "player": 325,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 412,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 412,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 413,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 653,
+  "gameweek": 3,
+  "price": 45
+ },
+ {
+  "player": 131,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 131,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 162,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 162,
+  "gameweek": 3,
+  "price": 49
+ },
+ {
+  "player": 162,
+  "gameweek": 4,
+  "price": 48
+ },
+ {
+  "player": 418,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 418,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 416,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 417,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 417,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 414,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 420,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 420,
+  "gameweek": 3,
+  "price": 49
+ },
+ {
+  "player": 423,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 423,
+  "gameweek": 4,
+  "price": 44
+ },
+ {
+  "player": 415,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 415,
+  "gameweek": 3,
+  "price": 59
+ },
+ {
+  "player": 415,
+  "gameweek": 4,
+  "price": 58
+ },
+ {
+  "player": 421,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 421,
+  "gameweek": 4,
+  "price": 44
+ },
+ {
+  "player": 426,
+  "gameweek": 1,
+  "price": 120
+ },
+ {
+  "player": 427,
+  "gameweek": 1,
+  "price": 80
+ },
+ {
+  "player": 427,
+  "gameweek": 4,
+  "price": 79
+ },
+ {
+  "player": 422,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 422,
+  "gameweek": 4,
+  "price": 44
+ },
+ {
+  "player": 425,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 429,
+  "gameweek": 1,
+  "price": 70
+ },
+ {
+  "player": 424,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 432,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 428,
+  "gameweek": 1,
+  "price": 80
+ },
+ {
+  "player": 428,
+  "gameweek": 4,
+  "price": 79
+ },
+ {
+  "player": 419,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 430,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 430,
+  "gameweek": 3,
+  "price": 54
+ },
+ {
+  "player": 436,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 431,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 431,
+  "gameweek": 2,
+  "price": 59
+ },
+ {
+  "player": 431,
+  "gameweek": 3,
+  "price": 58
+ },
+ {
+  "player": 438,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 434,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 434,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 435,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 435,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 437,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 441,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 433,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 405,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 442,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 442,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 445,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 443,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 439,
+  "gameweek": 1,
+  "price": 70
+ },
+ {
+  "player": 440,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 440,
+  "gameweek": 3,
+  "price": 54
+ },
+ {
+  "player": 449,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 449,
+  "gameweek": 3,
+  "price": 51
+ },
+ {
+  "player": 449,
+  "gameweek": 4,
+  "price": 52
+ },
+ {
+  "player": 446,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 453,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 447,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 454,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 454,
+  "gameweek": 3,
+  "price": 61
+ },
+ {
+  "player": 454,
+  "gameweek": 4,
+  "price": 62
+ },
+ {
+  "player": 448,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 448,
+  "gameweek": 3,
+  "price": 49
+ },
+ {
+  "player": 444,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 456,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 456,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 450,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 450,
+  "gameweek": 3,
+  "price": 49
+ },
+ {
+  "player": 458,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 458,
+  "gameweek": 3,
+  "price": 54
+ },
+ {
+  "player": 460,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 451,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 459,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 462,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 462,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 464,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 464,
+  "gameweek": 3,
+  "price": 61
+ },
+ {
+  "player": 464,
+  "gameweek": 4,
+  "price": 62
+ },
+ {
+  "player": 463,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 463,
+  "gameweek": 3,
+  "price": 59
+ },
+ {
+  "player": 567,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 457,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 457,
+  "gameweek": 3,
+  "price": 59
+ },
+ {
+  "player": 593,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 559,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 559,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 461,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 461,
+  "gameweek": 3,
+  "price": 59
+ },
+ {
+  "player": 461,
+  "gameweek": 4,
+  "price": 58
+ },
+ {
+  "player": 167,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 201,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 201,
+  "gameweek": 3,
+  "price": 54
+ },
+ {
+  "player": 609,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 469,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 634,
+  "gameweek": 3,
+  "price": 60
+ },
+ {
+  "player": 468,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 467,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 466,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 473,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 471,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 474,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 476,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 470,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 477,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 465,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 465,
+  "gameweek": 3,
+  "price": 59
+ },
+ {
+  "player": 480,
+  "gameweek": 1,
+  "price": 80
+ },
+ {
+  "player": 480,
+  "gameweek": 3,
+  "price": 79
+ },
+ {
+  "player": 472,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 475,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 478,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 478,
+  "gameweek": 4,
+  "price": 44
+ },
+ {
+  "player": 483,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 484,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 484,
+  "gameweek": 3,
+  "price": 54
+ },
+ {
+  "player": 486,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 487,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 487,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 488,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 488,
+  "gameweek": 3,
+  "price": 49
+ },
+ {
+  "player": 479,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 489,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 491,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 491,
+  "gameweek": 3,
+  "price": 59
+ },
+ {
+  "player": 491,
+  "gameweek": 4,
+  "price": 58
+ },
+ {
+  "player": 482,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 482,
+  "gameweek": 3,
+  "price": 59
+ },
+ {
+  "player": 482,
+  "gameweek": 4,
+  "price": 58
+ },
+ {
+  "player": 490,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 490,
+  "gameweek": 3,
+  "price": 59
+ },
+ {
+  "player": 490,
+  "gameweek": 4,
+  "price": 58
+ },
+ {
+  "player": 590,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 493,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 493,
+  "gameweek": 3,
+  "price": 54
+ },
+ {
+  "player": 485,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 558,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 112,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 112,
+  "gameweek": 3,
+  "price": 49
+ },
+ {
+  "player": 455,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 455,
+  "gameweek": 3,
+  "price": 54
+ },
+ {
+  "player": 495,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 401,
+  "gameweek": 1,
+  "price": 70
+ },
+ {
+  "player": 496,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 494,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 498,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 498,
+  "gameweek": 3,
+  "price": 59
+ },
+ {
+  "player": 498,
+  "gameweek": 4,
+  "price": 58
+ },
+ {
+  "player": 499,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 497,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 502,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 502,
+  "gameweek": 4,
+  "price": 44
+ },
+ {
+  "player": 503,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 581,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 581,
+  "gameweek": 3,
+  "price": 54
+ },
+ {
+  "player": 403,
+  "gameweek": 1,
+  "price": 65
+ },
+ {
+  "player": 508,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 505,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 506,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 507,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 147,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 147,
+  "gameweek": 4,
+  "price": 44
+ },
+ {
+  "player": 500,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 510,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 511,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 512,
+  "gameweek": 1,
+  "price": 65
+ },
+ {
+  "player": 514,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 514,
+  "gameweek": 3,
+  "price": 59
+ },
+ {
+  "player": 514,
+  "gameweek": 4,
+  "price": 58
+ },
+ {
+  "player": 513,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 513,
+  "gameweek": 4,
+  "price": 59
+ },
+ {
+  "player": 516,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 509,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 518,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 518,
+  "gameweek": 2,
+  "price": 49
+ },
+ {
+  "player": 519,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 519,
+  "gameweek": 3,
+  "price": 54
+ },
+ {
+  "player": 520,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 520,
+  "gameweek": 3,
+  "price": 54
+ },
+ {
+  "player": 521,
+  "gameweek": 1,
+  "price": 65
+ },
+ {
+  "player": 515,
+  "gameweek": 1,
+  "price": 65
+ },
+ {
+  "player": 515,
+  "gameweek": 3,
+  "price": 64
+ },
+ {
+  "player": 515,
+  "gameweek": 4,
+  "price": 63
+ },
+ {
+  "player": 517,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 522,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 522,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 524,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 524,
+  "gameweek": 4,
+  "price": 44
+ },
+ {
+  "player": 525,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 525,
+  "gameweek": 3,
+  "price": 59
+ },
+ {
+  "player": 525,
+  "gameweek": 4,
+  "price": 58
+ },
+ {
+  "player": 526,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 526,
+  "gameweek": 3,
+  "price": 59
+ },
+ {
+  "player": 501,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 528,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 529,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 529,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 578,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 578,
+  "gameweek": 3,
+  "price": 54
+ },
+ {
+  "player": 532,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 532,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 523,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 533,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 533,
+  "gameweek": 4,
+  "price": 54
+ },
+ {
+  "player": 535,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 535,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 534,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 534,
+  "gameweek": 4,
+  "price": 44
+ },
+ {
+  "player": 530,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 527,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 527,
+  "gameweek": 3,
+  "price": 59
+ },
+ {
+  "player": 536,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 601,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 537,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 539,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 540,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 542,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 542,
+  "gameweek": 3,
+  "price": 59
+ },
+ {
+  "player": 542,
+  "gameweek": 4,
+  "price": 58
+ },
+ {
+  "player": 531,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 541,
+  "gameweek": 1,
+  "price": 45
+ },
+ {
+  "player": 543,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 543,
+  "gameweek": 4,
+  "price": 54
+ },
+ {
+  "player": 544,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 547,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 547,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 538,
+  "gameweek": 1,
+  "price": 40
+ },
+ {
+  "player": 548,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 548,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 551,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 552,
+  "gameweek": 1,
+  "price": 60
+ },
+ {
+  "player": 552,
+  "gameweek": 3,
+  "price": 59
+ },
+ {
+  "player": 552,
+  "gameweek": 4,
+  "price": 58
+ },
+ {
+  "player": 549,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 549,
+  "gameweek": 3,
+  "price": 54
+ },
+ {
+  "player": 549,
+  "gameweek": 4,
+  "price": 53
+ },
+ {
+  "player": 553,
+  "gameweek": 1,
+  "price": 55
+ },
+ {
+  "player": 545,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 545,
+  "gameweek": 4,
+  "price": 49
+ },
+ {
+  "player": 546,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 546,
+  "gameweek": 3,
+  "price": 49
+ },
+ {
+  "player": 651,
+  "gameweek": 3,
+  "price": 45
+ },
+ {
+  "player": 612,
+  "gameweek": 2,
+  "price": 45
+ },
+ {
+  "player": 646,
+  "gameweek": 3,
+  "price": 55
+ },
+ {
+  "player": 550,
+  "gameweek": 1,
+  "price": 50
+ },
+ {
+  "player": 613,
+  "gameweek": 2,
+  "price": 45
+ }
+]

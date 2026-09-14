@@ -1,0 +1,499 @@
+// Premier Fantasy — modelo relacional
+// Dinero: enteros en décimas de millón de libras (130 = £13.0M) para evitar errores de coma flotante.
+// Enumeraciones: se guardan como String (SQLite) y se validan en la capa de servicios (src/domain/constants.ts).
+// Para producción basta con cambiar el provider a "postgresql" y DATABASE_URL.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ───────────────────────────── Usuarios ─────────────────────────────
+
+model User {
+  id             String    @id @default(cuid())
+  email          String    @unique
+  passwordHash   String
+  managerName    String
+  role           String    @default("USER") // USER | ADMIN
+  avatarUrl      String?
+  favoriteClubId Int?
+  isActive       Boolean   @default(true)
+  lastLoginAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  favoriteClub    Club?                @relation(fields: [favoriteClubId], references: [id], onDelete: SetNull)
+  team            FantasyTeam?
+  ownedLeagues    League[]             @relation("LeagueOwner")
+  memberships     LeagueMember[]
+  notifications   Notification[]
+  resetTokens     PasswordResetToken[]
+  favorites       FavoritePlayer[]
+  achievements    UserAchievement[]
+  news            News[]
+  avatar          UserAvatar?
+  invitesSent     LeagueInvite[]       @relation("InviteSender")
+  invitesReceived LeagueInvite[]       @relation("InviteReceiver")
+
+  @@map("users")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_reset_tokens")
+}
+
+// ───────────────────────────── Competición ─────────────────────────────
+
+model Club {
+  id             Int      @id @default(autoincrement())
+  externalId     Int?     @unique // id en la fuente externa (FPL)
+  code           Int?     @unique // código oficial usado en escudos
+  name           String   @unique
+  shortName      String   @unique // ARS, LIV...
+  commonName     String? // "Spurs", "Man City"
+  city           String
+  stadium        String
+  primaryColor   String
+  secondaryColor String
+  crestUrl       String?
+  isActive       Boolean  @default(true) // false = descendido / fuera de la temporada activa
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  players      Player[]
+  homeFixtures Fixture[]         @relation("HomeClub")
+  awayFixtures Fixture[]         @relation("AwayClub")
+  fans         User[]
+  statistics   PlayerStatistic[]
+  news         News[]
+
+  @@map("clubs")
+}
+
+model Player {
+  id              Int       @id @default(autoincrement())
+  externalId      Int?      @unique
+  code            Int?      @unique // código de foto oficial
+  firstName       String
+  lastName        String
+  displayName     String
+  position        String // GK | DEF | MID | FWD
+  clubId          Int
+  birthDate       DateTime?
+  nationality     String?
+  photoUrl        String?
+  squadNumber     Int?
+  price           Int // décimas de millón
+  status          String    @default("AVAILABLE") // AVAILABLE | DOUBTFUL | INJURED | SUSPENDED | UNAVAILABLE
+  chanceOfPlaying Int?
+  news            String?
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  club          Club                @relation(fields: [clubId], references: [id], onDelete: Restrict)
+  prices        PlayerPrice[]
+  statistics    PlayerStatistic[]
+  injuries      PlayerInjury[]
+  squadEntries  FantasyTeamPlayer[]
+  lineupEntries LineupPlayer[]
+  transfers     Transfer[]
+  favorites     FavoritePlayer[]
+  newsItems     News[]
+
+  @@index([clubId])
+  @@index([position])
+  @@index([displayName])
+  @@map("players")
+}
+
+model PlayerPrice {
+  id          Int      @id @default(autoincrement())
+  playerId    Int
+  gameweekId  Int?
+  price       Int
+  change      Int      @default(0)
+  reason      String // INITIAL | PERFORMANCE | DEMAND | ADMIN | IMPORT | SYNC
+  createdAt   DateTime @default(now())
+
+  player   Player    @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  gameweek Gameweek? @relation(fields: [gameweekId], references: [id], onDelete: SetNull)
+
+  @@index([playerId, createdAt])
+  @@map("player_prices")
+}
+
+model PlayerInjury {
+  id             Int       @id @default(autoincrement())
+  playerId       Int
+  type           String // INJURY | SUSPENSION | ILLNESS | OTHER
+  description    String
+  startDate      DateTime  @default(now())
+  expectedReturn DateTime?
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([playerId, isActive])
+  @@map("player_injuries")
+}
+
+model Gameweek {
+  id            Int      @id // = número de jornada
+  season        String
+  name          String
+  deadline      DateTime // cierre de alineaciones (modo DEADLINE) / referencia de recordatorios
+  startsAt      DateTime?
+  endsAt        DateTime?
+  status        String   @default("UPCOMING") // UPCOMING | LIVE | FINISHED
+  isProcessed   Boolean  @default(false) // puntuación definitiva calculada
+  pricesUpdated Boolean  @default(false)
+  reminderSent  Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  fixtures   Fixture[]
+  lineups    Lineup[]
+  statistics PlayerStatistic[]
+  prices     PlayerPrice[]
+  transfers  Transfer[]
+
+  @@map("gameweeks")
+}
+
+model Fixture {
+  id             Int       @id @default(autoincrement())
+  externalId     Int?      @unique
+  gameweekId     Int
+  homeClubId     Int
+  awayClubId     Int
+  kickoff        DateTime?
+  status         String    @default("SCHEDULED") // SCHEDULED | LIVE | FINISHED | POSTPONED
+  homeScore      Int?
+  awayScore      Int?
+  minute         Int       @default(0)
+  homeDifficulty Int?
+  awayDifficulty Int?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  gameweek   Gameweek          @relation(fields: [gameweekId], references: [id], onDelete: Cascade)
+  homeClub   Club              @relation("HomeClub", fields: [homeClubId], references: [id], onDelete: Restrict)
+  awayClub   Club              @relation("AwayClub", fields: [awayClubId], references: [id], onDelete: Restrict)
+  statistics PlayerStatistic[]
+
+  @@index([gameweekId])
+  @@index([kickoff])
+  @@map("fixtures")
+}
+
+model PlayerStatistic {
+  id             Int      @id @default(autoincrement())
+  playerId       Int
+  fixtureId      Int
+  gameweekId     Int // desnormalizado para consultas por jornada
+  clubId         Int // club del jugador en ese partido (el jugador puede cambiar de club)
+  minutes        Int      @default(0)
+  goals          Int      @default(0)
+  assists        Int      @default(0)
+  cleanSheet     Boolean  @default(false)
+  goalsConceded  Int      @default(0)
+  ownGoals       Int      @default(0)
+  penaltiesSaved Int      @default(0)
+  penaltiesMissed Int     @default(0)
+  yellowCards    Int      @default(0)
+  redCards       Int      @default(0)
+  saves          Int      @default(0)
+  bonus          Int      @default(0)
+  points         Int      @default(0)
+  breakdown      String   @default("[]") // JSON [{action,label,value,points}]
+  updatedAt      DateTime @updatedAt
+
+  player   Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  fixture  Fixture  @relation(fields: [fixtureId], references: [id], onDelete: Cascade)
+  gameweek Gameweek @relation(fields: [gameweekId], references: [id], onDelete: Cascade)
+  club     Club     @relation(fields: [clubId], references: [id], onDelete: Restrict)
+
+  @@unique([playerId, fixtureId])
+  @@index([gameweekId])
+  @@map("player_statistics")
+}
+
+// ───────────────────────────── Juego ─────────────────────────────
+
+model FantasyTeam {
+  id          Int      @id @default(autoincrement())
+  userId      String   @unique
+  name        String
+  crest       String   @default("{}") // JSON: {shape, primary, secondary, pattern, initials}
+  budget      Int
+  totalPoints Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  players      FantasyTeamPlayer[]
+  lineups      Lineup[]
+  transfers    Transfer[]
+  transactions Transaction[]
+
+  @@map("fantasy_teams")
+}
+
+model FantasyTeamPlayer {
+  id            Int      @id @default(autoincrement())
+  teamId        Int
+  playerId      Int
+  purchasePrice Int
+  acquiredAt    DateTime @default(now())
+
+  team   FantasyTeam @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  player Player      @relation(fields: [playerId], references: [id], onDelete: Restrict)
+
+  @@unique([teamId, playerId])
+  @@index([playerId])
+  @@map("fantasy_team_players")
+}
+
+model Lineup {
+  id            Int      @id @default(autoincrement())
+  teamId        Int
+  gameweekId    Int
+  formation     String // "4-4-2"
+  captainId     Int?
+  viceCaptainId Int?
+  points        Int      @default(0)
+  benchPoints   Int      @default(0)
+  isFinal       Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  team     FantasyTeam    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  gameweek Gameweek       @relation(fields: [gameweekId], references: [id], onDelete: Cascade)
+  players  LineupPlayer[]
+
+  @@unique([teamId, gameweekId])
+  @@index([gameweekId])
+  @@map("lineups")
+}
+
+model LineupPlayer {
+  id            Int     @id @default(autoincrement())
+  lineupId      Int
+  playerId      Int
+  role          String // STARTER | BENCH
+  order         Int // titulares 0..10, suplentes 0..3 (prioridad)
+  points        Int     @default(0) // puntos brutos del jugador en la jornada
+  multiplier    Int     @default(1) // 0 = no suma, 1, 2 (capitán)
+  autoSubIn     Boolean @default(false)
+  autoSubOut    Boolean @default(false)
+
+  lineup Lineup @relation(fields: [lineupId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Restrict)
+
+  @@unique([lineupId, playerId])
+  @@map("lineup_players")
+}
+
+model Transfer {
+  id         Int      @id @default(autoincrement())
+  teamId     Int
+  playerId   Int
+  gameweekId Int?
+  type       String // BUY | SELL
+  price      Int
+  createdAt  DateTime @default(now())
+
+  team        FantasyTeam  @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  player      Player       @relation(fields: [playerId], references: [id], onDelete: Restrict)
+  gameweek    Gameweek?    @relation(fields: [gameweekId], references: [id], onDelete: SetNull)
+  transaction Transaction?
+
+  @@index([teamId, createdAt])
+  @@index([playerId, type])
+  @@map("transfers")
+}
+
+model Transaction {
+  id           Int      @id @default(autoincrement())
+  teamId       Int
+  transferId   Int?     @unique
+  type         String // INITIAL_BUDGET | PURCHASE | SALE | ADJUSTMENT | REWARD
+  amount       Int // con signo
+  balanceAfter Int
+  description  String
+  createdAt    DateTime @default(now())
+
+  team     FantasyTeam @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  transfer Transfer?   @relation(fields: [transferId], references: [id], onDelete: SetNull)
+
+  @@index([teamId, createdAt])
+  @@map("transactions")
+}
+
+model League {
+  id            Int      @id @default(autoincrement())
+  name          String
+  description   String?
+  code          String   @unique
+  passwordHash  String?
+  type          String // GLOBAL | PUBLIC | PRIVATE | FRIENDS | INVITE
+  maxMembers    Int      @default(20)
+  startGameweek Int      @default(1)
+  ownerId       String?
+  isSystem      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  owner   User?          @relation("LeagueOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  members LeagueMember[]
+  invites LeagueInvite[]
+
+  @@index([type])
+  @@map("leagues")
+}
+
+model LeagueMember {
+  id       Int      @id @default(autoincrement())
+  leagueId Int
+  userId   String
+  role     String   @default("MEMBER") // ADMIN | MEMBER
+  joinedAt DateTime @default(now())
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, userId])
+  @@index([userId])
+  @@map("league_members")
+}
+
+model LeagueInvite {
+  id         Int      @id @default(autoincrement())
+  leagueId   Int
+  senderId   String
+  receiverId String
+  status     String   @default("PENDING") // PENDING | ACCEPTED | DECLINED
+  createdAt  DateTime @default(now())
+
+  league   League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  sender   User   @relation("InviteSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User   @relation("InviteReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, receiverId])
+  @@map("league_invites")
+}
+
+// ───────────────────────────── Configuración ─────────────────────────────
+
+model ScoringRule {
+  id        Int      @id @default(autoincrement())
+  position  String // GK | DEF | MID | FWD
+  action    String // ver SCORING_ACTIONS
+  points    Int
+  threshold Int      @default(1) // unidades por bloque (p.ej. 3 paradas = 1 bloque) o minutos mínimos
+  isActive  Boolean  @default(true)
+  updatedAt DateTime @updatedAt
+
+  @@unique([position, action])
+  @@map("scoring_rules")
+}
+
+model Setting {
+  key         String   @id
+  value       String // JSON
+  description String?
+  updatedAt   DateTime @updatedAt
+
+  @@map("settings")
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    String
+  type      String
+  title     String
+  message   String
+  link      String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+model News {
+  id        Int      @id @default(autoincrement())
+  title     String
+  summary   String
+  content   String
+  category  String   @default("GENERAL") // GENERAL | INJURY | TRANSFER | GAMEWEEK | MARKET
+  imageUrl  String?
+  clubId    Int?
+  playerId  Int?
+  authorId  String?
+  published Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  club   Club?   @relation(fields: [clubId], references: [id], onDelete: SetNull)
+  player Player? @relation(fields: [playerId], references: [id], onDelete: SetNull)
+  author User?   @relation(fields: [authorId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@map("news")
+}
+
+model FavoritePlayer {
+  userId    String
+  playerId  Int
+  createdAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@id([userId, playerId])
+  @@map("favorite_players")
+}
+
+model UserAchievement {
+  id         Int      @id @default(autoincrement())
+  userId     String
+  code       String
+  unlockedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, code])
+  @@map("user_achievements")
+}
+
+// Foto de perfil guardada en la BD: los hostings gratuitos no conservan archivos subidos al disco
+model UserAvatar {
+  userId    String   @id
+  mimeType  String
+  data      Bytes
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_avatars")
+}

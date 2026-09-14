@@ -1,0 +1,25 @@
+{
+  "name": "premier-fantasy",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Fantasy Football Manager basado en la Premier League",
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "setup": "npm install && npm run db:setup -w server",
+    "dev": "concurrently -k -n api,web -c green,cyan \"npm run dev -w server\" \"npm run dev -w client\"",
+    "build": "npm run build -w server && npm run build -w client",
+    "start": "npm run start -w server",
+    "test": "npm run test -w server",
+    "typecheck": "npm run typecheck -w server && npm run typecheck -w client",
+    "data:fetch": "npm run data:fetch -w server",
+    "db:demo": "npm run db:demo -w server",
+    "build:render": "npm run build:render -w server && npm run build -w client",
+    "start:render": "npm run start:render -w server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

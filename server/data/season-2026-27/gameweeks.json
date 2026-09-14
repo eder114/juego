@@ -1,0 +1,192 @@
+[
+ {
+  "number": 1,
+  "name": "Jornada 1",
+  "deadline": "2026-08-21T17:30:00Z"
+ },
+ {
+  "number": 2,
+  "name": "Jornada 2",
+  "deadline": "2026-08-28T17:30:00Z"
+ },
+ {
+  "number": 3,
+  "name": "Jornada 3",
+  "deadline": "2026-09-04T17:30:00Z"
+ },
+ {
+  "number": 4,
+  "name": "Jornada 4",
+  "deadline": "2026-09-12T12:30:00Z"
+ },
+ {
+  "number": 5,
+  "name": "Jornada 5",
+  "deadline": "2026-09-18T17:30:00Z"
+ },
+ {
+  "number": 6,
+  "name": "Jornada 6",
+  "deadline": "2026-10-10T10:00:00Z"
+ },
+ {
+  "number": 7,
+  "name": "Jornada 7",
+  "deadline": "2026-10-17T10:00:00Z"
+ },
+ {
+  "number": 8,
+  "name": "Jornada 8",
+  "deadline": "2026-10-23T17:30:00Z"
+ },
+ {
+  "number": 9,
+  "name": "Jornada 9",
+  "deadline": "2026-10-31T11:00:00Z"
+ },
+ {
+  "number": 10,
+  "name": "Jornada 10",
+  "deadline": "2026-11-07T13:30:00Z"
+ },
+ {
+  "number": 11,
+  "name": "Jornada 11",
+  "deadline": "2026-11-21T13:30:00Z"
+ },
+ {
+  "number": 12,
+  "name": "Jornada 12",
+  "deadline": "2026-11-28T13:30:00Z"
+ },
+ {
+  "number": 13,
+  "name": "Jornada 13",
+  "deadline": "2026-12-02T18:30:00Z"
+ },
+ {
+  "number": 14,
+  "name": "Jornada 14",
+  "deadline": "2026-12-05T13:30:00Z"
+ },
+ {
+  "number": 15,
+  "name": "Jornada 15",
+  "deadline": "2026-12-12T13:30:00Z"
+ },
+ {
+  "number": 16,
+  "name": "Jornada 16",
+  "deadline": "2026-12-19T13:30:00Z"
+ },
+ {
+  "number": 17,
+  "name": "Jornada 17",
+  "deadline": "2026-12-26T11:00:00Z"
+ },
+ {
+  "number": 18,
+  "name": "Jornada 18",
+  "deadline": "2026-12-29T18:00:00Z"
+ },
+ {
+  "number": 19,
+  "name": "Jornada 19",
+  "deadline": "2027-01-01T18:30:00Z"
+ },
+ {
+  "number": 20,
+  "name": "Jornada 20",
+  "deadline": "2027-01-05T18:00:00Z"
+ },
+ {
+  "number": 21,
+  "name": "Jornada 21",
+  "deadline": "2027-01-16T13:30:00Z"
+ },
+ {
+  "number": 22,
+  "name": "Jornada 22",
+  "deadline": "2027-01-23T13:30:00Z"
+ },
+ {
+  "number": 23,
+  "name": "Jornada 23",
+  "deadline": "2027-01-30T13:30:00Z"
+ },
+ {
+  "number": 24,
+  "name": "Jornada 24",
+  "deadline": "2027-02-06T13:30:00Z"
+ },
+ {
+  "number": 25,
+  "name": "Jornada 25",
+  "deadline": "2027-02-10T18:30:00Z"
+ },
+ {
+  "number": 26,
+  "name": "Jornada 26",
+  "deadline": "2027-02-20T13:30:00Z"
+ },
+ {
+  "number": 27,
+  "name": "Jornada 27",
+  "deadline": "2027-02-27T13:30:00Z"
+ },
+ {
+  "number": 28,
+  "name": "Jornada 28",
+  "deadline": "2027-03-03T18:30:00Z"
+ },
+ {
+  "number": 29,
+  "name": "Jornada 29",
+  "deadline": "2027-03-13T13:30:00Z"
+ },
+ {
+  "number": 30,
+  "name": "Jornada 30",
+  "deadline": "2027-03-20T13:30:00Z"
+ },
+ {
+  "number": 31,
+  "name": "Jornada 31",
+  "deadline": "2027-04-10T12:30:00Z"
+ },
+ {
+  "number": 32,
+  "name": "Jornada 32",
+  "deadline": "2027-04-17T12:30:00Z"
+ },
+ {
+  "number": 33,
+  "name": "Jornada 33",
+  "deadline": "2027-04-24T12:30:00Z"
+ },
+ {
+  "number": 34,
+  "name": "Jornada 34",
+  "deadline": "2027-05-01T12:30:00Z"
+ },
+ {
+  "number": 35,
+  "name": "Jornada 35",
+  "deadline": "2027-05-08T12:30:00Z"
+ },
+ {
+  "number": 36,
+  "name": "Jornada 36",
+  "deadline": "2027-05-15T12:30:00Z"
+ },
+ {
+  "number": 37,
+  "name": "Jornada 37",
+  "deadline": "2027-05-23T12:30:00Z"
+ },
+ {
+  "number": 38,
+  "name": "Jornada 38",
+  "deadline": "2027-05-30T13:30:00Z"
+ }
+]

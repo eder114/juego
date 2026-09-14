@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env
+*.db
+*.db-journal
+*.log
+server/uploads/
+server/prisma/postgres/
+server/data/raw/
+.DS_Store
+.claude/
