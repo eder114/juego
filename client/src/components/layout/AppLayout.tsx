@@ -27,8 +27,6 @@ import { money, relativeTime } from '../../lib/format';
 import type { AppNotification } from '../../types';
 import { Avatar, TeamCrest } from '../sport';
 import { LoadingBlock } from '../ui';
-import { InstallPrompt } from '../InstallPrompt';
-
 const NAV = [
   { to: '/dashboard', label: 'Inicio', icon: LayoutDashboard },
   { to: '/team', label: 'Mi equipo', icon: Shirt },
@@ -218,10 +216,6 @@ export default function AppLayout() {
           </div>
         </Suspense>
       </main>
-
-      <div className="fixed inset-x-3 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-30 mx-auto max-w-md lg:hidden">
-        <InstallPrompt />
-      </div>
 
       {/* Navegación inferior (móvil) */}
       <nav className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.08] bg-ink-850/95 backdrop-blur-xl lg:hidden">

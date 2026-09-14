@@ -5,8 +5,6 @@ import { api } from '../../lib/api';
 import type { Club } from '../../types';
 import { Logo } from '../../components/layout/AppLayout';
 import { ClubCrest } from '../../components/sport';
-import { InstallPrompt } from '../../components/InstallPrompt';
-
 const FEATURES = [
   { icon: ShoppingBag, title: 'Mercado de fichajes', text: 'Jugadores reales de la Premier League con precios que suben y bajan según rendimiento y demanda.' },
   { icon: Users, title: 'Alineación táctica', text: 'Siete formaciones, campo visual con arrastrar y soltar, capitán, vicecapitán y banquillo.' },
@@ -104,10 +102,6 @@ export default function Landing() {
           </div>
         ))}
       </section>
-
-      <div className="fixed inset-x-3 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-30 mx-auto max-w-md lg:hidden">
-        <InstallPrompt />
-      </div>
 
       <footer className="border-t border-white/[0.06] py-8 text-center text-xs text-slate-500">Premier Fantasy · Datos de la Premier League vía Fantasy Premier League API</footer>
     </div>

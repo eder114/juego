@@ -18,13 +18,6 @@ const queryClient = new QueryClient({
   },
 });
 
-// PWA: app instalable en el teléfono (solo en el build de producción)
-if ('serviceWorker' in navigator && import.meta.env.PROD) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => undefined);
-  });
-}
-
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>

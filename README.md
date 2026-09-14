@@ -16,10 +16,10 @@ Los usuarios crean su equipo con £100M, fichan 15 jugadores reales, configuran 
 | Autenticación | JWT (Bearer) · bcrypt (12 rondas) · tokens de recuperación SHA-256 con caducidad |
 | Tests | Vitest (motor de puntuación, alineaciones, sustituciones y precios) |
 
-## Publicar en internet y usar en el teléfono
+## Publicar en internet
 
-- **Gratis en internet**: Render (aplicación) + Neon (PostgreSQL). Guía paso a paso en **[DESPLIEGUE.md](DESPLIEGUE.md)**; la configuración está en `render.yaml`.
-- **App para teléfono (PWA)**: se instala desde el navegador (Android: *Instalar app*; iPhone: *Compartir → Añadir a pantalla de inicio*). Funciona a pantalla completa con icono propio, con navegación inferior, campos sin zoom en iOS, zonas seguras del notch y fotos de perfil reducidas antes de subirlas.
+- **Gratis en internet**: Render (página web + API) + Neon (PostgreSQL). Guía paso a paso en **[DESPLIEGUE.md](DESPLIEGUE.md)**; la configuración está en `render.yaml`.
+- **Página web para cualquier dispositivo**: se usa desde el navegador con un enlace, sin descargar nada. El diseño se adapta a computador, tablet y celular (navegación inferior en móvil, campos sin zoom en iOS, fotos de perfil reducidas antes de subirlas).
 - **Producción**: el backend sirve la web compilada. Con la base de datos vacía, la temporada se carga sola en el primer arranque. El esquema PostgreSQL se genera desde el mismo `schema.prisma` (`npm run build:render`).
 
 ## Puesta en marcha

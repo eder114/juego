@@ -27,9 +27,7 @@ export function createApp() {
           imgSrc: ["'self'", 'data:', 'blob:', 'https://resources.premierleague.com'],
           styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
           fontSrc: ["'self'", 'https://fonts.gstatic.com'],
-          connectSrc: ["'self'", 'https://resources.premierleague.com'],
-          workerSrc: ["'self'"],
-          manifestSrc: ["'self'"],
+          connectSrc: ["'self'"],
         },
       },
     }),
@@ -66,7 +64,7 @@ export function createApp() {
   app.use('/api', userRouter);
   app.use('/api', notFoundHandler);
 
-  // En producción el backend sirve el frontend compilado (PWA)
+  // En producción el backend sirve la página web compilada
   const clientDist = path.resolve('../client/dist');
   if (isProd && existsSync(clientDist)) {
     app.use(

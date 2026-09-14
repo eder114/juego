@@ -1,12 +1,12 @@
-# 🌍 Publicar Premier Fantasy en internet (gratis) y usarla en el teléfono
+# 🌍 Publicar Premier Fantasy en internet (gratis)
 
-Resultado final: una dirección tipo `https://premier-fantasy.onrender.com` que cualquiera puede abrir, y que en el teléfono se instala como una aplicación, con icono y a pantalla completa.
+Resultado final: una página web con dirección tipo `https://premier-fantasy.onrender.com` que cualquiera puede abrir desde el navegador del computador, la tablet o el celular. No hay que descargar ni instalar nada: se entra con el enlace, como a cualquier página.
 
 | Pieza | Servicio gratuito | Qué hace |
 |---|---|---|
 | Código | **GitHub** | Guarda el proyecto; Render lo lee desde aquí |
 | Base de datos | **Neon** (PostgreSQL) | Usuarios, equipos, ligas y puntos. No caduca |
-| Aplicación | **Render** (Web Service Free) | Ejecuta la API y sirve la web/app |
+| Página web | **Render** (Web Service Free) | Publica la página web y su API |
 
 Tiempo total: unos 20 minutos. No hace falta tarjeta de crédito.
 
@@ -81,19 +81,14 @@ Entra con tu `ADMIN_EMAIL` y `ADMIN_PASSWORD` para acceder al panel de administr
 
 ---
 
-## Paso 4 · Instalar la app en el teléfono
+## Paso 4 · Compartir la página
 
-Comparte la dirección con tus amigos. Cada uno la instala así:
+Envía la dirección a tus amigos por WhatsApp, correo o redes. Cada uno:
 
-**Android (Chrome)**
-1. Abre la dirección en Chrome.
-2. Aparecerá el aviso **«Instala Premier Fantasy» → Instalar app**. Si no aparece: menú **⋮ → Instalar aplicación** (o *Añadir a pantalla de inicio*).
+1. Abre el enlace en el navegador que use (Chrome, Safari, Edge, Firefox…), en computador o celular.
+2. Pulsa **Crear equipo**, se registra y empieza a fichar.
 
-**iPhone (Safari)**
-1. Abre la dirección en **Safari** (en iPhone debe ser Safari).
-2. Toca **Compartir** (el cuadrado con la flecha) → **Añadir a pantalla de inicio** → **Añadir**.
-
-La app queda con su icono, se abre a pantalla completa sin barra del navegador y usa la navegación inferior pensada para el móvil.
+En el celular la página se adapta sola a la pantalla, con menú inferior y botones grandes. No hay nada que descargar.
 
 ---
 
@@ -125,14 +120,6 @@ git push
 ```
 
 Los datos de la base de datos (usuarios, equipos, ligas, puntos) se conservan entre despliegues.
-
----
-
-## Opcional · Tenerla como app Android (APK / Google Play)
-
-1. Abre https://www.pwabuilder.com y escribe la dirección de tu app.
-2. Pulsa **Package for stores → Android** para descargar un paquete gratis.
-3. Ese paquete se puede instalar directamente en Android. Publicarlo en Google Play requiere una cuenta de desarrollador, que cuesta un pago único de 25 USD.
 
 ---
 
