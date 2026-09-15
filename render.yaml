@@ -5,7 +5,7 @@ services:
     name: premier-fantasy
     runtime: node
     plan: free
-    region: virginia
+    region: ohio
     buildCommand: npm ci --include=dev && npm run build:render
     startCommand: npm run start:render
     healthCheckPath: /api/health

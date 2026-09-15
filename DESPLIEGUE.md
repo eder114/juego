@@ -47,7 +47,7 @@ El proyecto ya tiene un repositorio Git local con todo el código confirmado. So
 2. **Create project**:
    - Name: `premier-fantasy`
    - Postgres version: la que venga por defecto
-   - Region: **AWS US East (N. Virginia)**, la misma zona que Render en el paso 3, para que vaya rápido
+   - Region: **AWS US East (Ohio)**, la misma zona que Render en el paso 3, para que vaya rápido
 3. En el panel del proyecto pulsa **Connect**:
    - Desactiva **Connection pooling**: la app necesita la conexión directa.
    - Copia la cadena que empieza por `postgresql://…` y termina en `sslmode=require`.
