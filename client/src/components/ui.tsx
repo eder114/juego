@@ -172,7 +172,11 @@ export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () =>
 
 const DOTS = { mint: 'bg-pitch-500', violet: 'bg-brand-orchid', gold: 'bg-gold', red: 'bg-red-400' };
 
-/** Tarjeta de dato del diseño: etiqueta, icono en recuadro, cifra grande (+unidad) y línea con punto de color. */
+/**
+ * Tarjeta de dato del diseño: etiqueta, icono, cifra grande (+unidad) y línea secundaria.
+ * - glass: tarjeta translúcida de las pantallas de acceso.
+ * - outline: tarjeta con borde claro del dashboard (design/dashboard.webp).
+ */
 export function StatCard({
   label,
   value,
@@ -181,6 +185,7 @@ export function StatCard({
   dot,
   icon,
   accent,
+  variant = 'glass',
   className,
 }: {
   label: string;
@@ -190,20 +195,34 @@ export function StatCard({
   dot?: keyof typeof DOTS;
   icon?: ReactNode;
   accent?: boolean;
+  variant?: 'glass' | 'outline';
   className?: string;
 }) {
+  const outline = variant === 'outline';
   return (
-    <div className={clsx('glass-card relative overflow-hidden p-4 sm:p-5', accent && 'border-pitch-500/35 bg-[linear-gradient(145deg,rgb(44_229_153/0.16),rgb(255_255_255/0.06)_60%)]', className)}>
+    <div
+      className={clsx(
+        'relative overflow-hidden',
+        outline ? 'dash-card p-4 transition duration-200 hover:-translate-y-0.5 hover:border-white/80 sm:px-5 sm:py-5' : 'glass-card p-4 sm:p-5',
+        accent && !outline && 'border-pitch-500/35 bg-[linear-gradient(145deg,rgb(44_229_153/0.16),rgb(255_255_255/0.06)_60%)]',
+        className,
+      )}
+    >
       <div className="flex items-start justify-between gap-2">
-        <p className="min-w-0 text-[0.75rem] font-medium uppercase tracking-[0.04em] text-brand-lilac sm:text-[0.8125rem]">{label}</p>
-        {icon && <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-white/[0.08] text-brand-magenta [&_svg]:size-[1.125rem]">{icon}</span>}
+        <p className={clsx('min-w-0 uppercase', outline ? 'text-[0.75rem] font-bold tracking-[0.06em] text-white sm:text-[0.8125rem]' : 'text-[0.75rem] font-medium tracking-[0.04em] text-brand-lilac sm:text-[0.8125rem]')}>{label}</p>
+        {icon &&
+          (outline ? (
+            <span aria-hidden className="shrink-0 text-white/90 [&_svg]:size-[1.15rem]">{icon}</span>
+          ) : (
+            <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-white/[0.08] text-brand-magenta [&_svg]:size-[1.125rem]">{icon}</span>
+          ))}
       </div>
-      <p className="mt-3 flex flex-wrap items-baseline gap-x-2">
-        <span className="stat-number text-[2rem] sm:text-[2.6rem]">{value}</span>
+      <p className={clsx('flex flex-wrap items-baseline gap-x-2', outline ? 'mt-2' : 'mt-3')}>
+        <span className={outline ? 'text-[1.75rem] font-extrabold leading-tight tracking-tight text-white tabular-nums sm:text-[2rem]' : 'stat-number text-[2rem] sm:text-[2.6rem]'}>{value}</span>
         {unit && <span className="text-xs font-medium uppercase text-brand-lilac sm:text-sm">{unit}</span>}
       </p>
       {sub && (
-        <div className="mt-2 flex items-center gap-2 font-tech text-xs font-medium text-brand-lilac/90 sm:text-[0.8125rem]">
+        <div className={clsx('mt-2 flex items-center gap-2 text-xs sm:text-[0.8125rem]', outline ? 'font-medium text-white/90' : 'font-tech font-medium text-brand-lilac/90')}>
           {dot && <span aria-hidden className={clsx('size-2 shrink-0 rounded-full', DOTS[dot])} />}
           <span className="min-w-0">{sub}</span>
         </div>

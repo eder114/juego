@@ -261,6 +261,35 @@
     }
   }
 
+  /* ───────── Área privada (referencia: design/dashboard.webp) ───────── */
+  /* Fondo degradado teal → morado → magenta del diseño, en capa fija propia */
+  .scene-app {
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-color: #2a1150;
+    background-image:
+      linear-gradient(180deg, rgb(10 6 30 / 0.18) 0%, rgb(12 4 26 / 0.32) 100%),
+      url('./assets/brand/fondo-degradado.jpg');
+    background-size: cover;
+    background-position: center top;
+  }
+  /* Tarjeta del dashboard: transparente con borde claro */
+  .dash-card {
+    @apply relative min-w-0 rounded-[0.9rem] border-[1.5px] border-white/55 bg-white/[0.035] shadow-[0_18px_40px_-24px_rgb(8_0_20/0.6)];
+  }
+  /* Panel interior oscuro (filas, estados vacíos, partido destacado) */
+  .dash-inner {
+    @apply min-w-0 rounded-xl border border-white/[0.06] bg-[#0c1320]/60;
+  }
+  .dash-link {
+    @apply inline-flex items-center gap-1 text-sm font-semibold text-lime-glow transition hover:text-pitch-300;
+  }
+  .btn-go {
+    @apply inline-flex select-none items-center justify-center gap-1.5 rounded-lg bg-lime-glow font-bold text-ink-950 shadow-[0_8px_24px_-10px_rgb(3_255_136/0.8)] transition duration-200 hover:-translate-y-px hover:brightness-110 active:translate-y-0 active:scale-[0.98];
+  }
+
   /* ───────── Utilidades ───────── */
   .pitch-bg {
     background:

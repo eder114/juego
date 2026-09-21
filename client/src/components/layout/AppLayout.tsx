@@ -5,7 +5,7 @@ import {
   BarChart3,
   Bell,
   CalendarDays,
-  LayoutDashboard,
+  House,
   ListOrdered,
   LogOut,
   Menu,
@@ -23,13 +23,14 @@ import {
 import clsx from 'clsx';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../lib/api';
-import { money, relativeTime } from '../../lib/format';
+import { initials, money, relativeTime } from '../../lib/format';
+import { usePublicConfig } from '../../hooks/usePublicConfig';
 import type { AppNotification } from '../../types';
-import { Avatar, TeamCrest } from '../sport';
 import { LoadingBlock } from '../ui';
-import { BrandMark } from '../brand/BrandLogo';
+import { BrandLogo } from '../brand/BrandLogo';
+
 const NAV = [
-  { to: '/dashboard', label: 'Inicio', icon: LayoutDashboard },
+  { to: '/dashboard', label: 'Inicio', icon: House },
   { to: '/team', label: 'Mi equipo', icon: Shirt },
   { to: '/lineup', label: 'Alineación', icon: Users },
   { to: '/market', label: 'Mercado', icon: ShoppingBag },
@@ -42,16 +43,25 @@ const NAV = [
 ];
 const MOBILE_NAV = [NAV[0], NAV[2], NAV[3], NAV[4]];
 
-export function Logo({ compact }: { compact?: boolean }) {
+export function Logo({ className }: { className?: string }) {
   return (
-    <Link to="/dashboard" className="flex items-center gap-2.5">
-      <BrandMark />
-      {!compact && (
-        <span className="font-display text-xl font-extrabold uppercase leading-none tracking-wide text-white">
-          Premier<span className="text-gradient-highlight">Fantasy</span>
-        </span>
-      )}
+    <Link to="/dashboard" aria-label="Premier Fantasy · Inicio" className="inline-flex">
+      <BrandLogo className={className ?? 'h-9'} />
     </Link>
+  );
+}
+
+/** Avatar de la cabecera: foto del mánager o sus iniciales con el anillo verde del diseño. */
+function HeaderAvatar({ name, url }: { name: string; url?: string | null }) {
+  const [failed, setFailed] = useState(false);
+  return (
+    <span className="grid size-10 place-items-center overflow-hidden rounded-full bg-[#0c1a20] ring-2 ring-lime-glow transition group-hover:shadow-[0_0_18px_-2px_rgb(3_255_136/0.7)]">
+      {url && !failed ? (
+        <img src={url} alt="" onError={() => setFailed(true)} className="size-full object-cover" />
+      ) : (
+        <span className="text-sm font-extrabold text-lime-glow">{initials(name)}</span>
+      )}
+    </span>
   );
 }
 
@@ -78,9 +88,18 @@ function NotificationBell() {
 
   return (
     <div className="relative" ref={ref}>
-      <button onClick={() => setOpen((o) => !o)} className="relative grid size-10 place-items-center rounded-xl text-slate-300 hover:bg-white/[0.07] hover:text-white" aria-label={`Notificaciones (${unread} sin leer)`}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="relative grid size-10 place-items-center rounded-xl text-white/85 transition hover:bg-white/[0.08] hover:text-white"
+        aria-label={`Notificaciones (${unread} sin leer)`}
+      >
         <Bell className="size-5" />
-        {unread > 0 && <span className="absolute right-1.5 top-1.5 grid min-w-4.5 place-items-center rounded-full bg-pitch-500 px-1 text-[10px] font-bold text-ink-950">{unread > 99 ? '99+' : unread}</span>}
+        {unread > 0 && (
+          <span aria-hidden className="absolute right-0.5 top-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-lime-glow px-1 text-[10px] font-extrabold leading-none text-ink-950 ring-2 ring-[#10222b]">
+            {unread > 99 ? '99+' : unread}
+          </span>
+        )}
       </button>
       {open && (
         <div className="absolute right-0 top-12 z-50 w-[min(92vw,380px)] animate-pop overflow-hidden rounded-2xl border border-white/10 bg-ink-800 shadow-2xl">
@@ -124,6 +143,7 @@ function NotificationBell() {
 
 export default function AppLayout() {
   const { user, logout } = useAuth();
+  const { data: config } = usePublicConfig();
   const [moreOpen, setMoreOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
@@ -140,73 +160,78 @@ export default function AppLayout() {
 
   return (
     <div className="min-h-dvh lg:pl-64">
+      <div aria-hidden className="scene-app" />
+
       {/* Barra lateral (escritorio) */}
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-white/[0.06] bg-ink-850/90 backdrop-blur-xl lg:flex">
-        <div className="px-5 py-5">
-          <Logo />
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col border-r border-white/40 bg-[#051a2a]/15 lg:flex">
+        <div className="flex justify-center px-6 pb-6 pt-7">
+          <Logo className="h-[3.25rem]" />
         </div>
-        <nav className="flex-1 space-y-0.5 overflow-y-auto px-3">
+        <nav aria-label="Principal" className="scrollbar-none flex-1 space-y-2.5 overflow-y-auto px-5 pb-4">
           {navItems.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
               to={to}
               className={({ isActive }) =>
                 clsx(
-                  'group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition',
-                  isActive ? 'bg-pitch-500/15 text-white ring-1 ring-inset ring-pitch-500/25' : 'text-slate-400 hover:bg-white/[0.05] hover:text-white',
+                  'flex items-center gap-3.5 rounded-xl border-l-[3px] px-4 py-3 text-[0.95rem] font-semibold text-white transition duration-200',
+                  isActive
+                    ? 'border-lime-glow/80 bg-white/[0.2] shadow-[inset_0_1px_0_rgb(255_255_255/0.12)]'
+                    : 'border-white/25 bg-white/[0.08] hover:translate-x-0.5 hover:border-white/50 hover:bg-white/[0.14]',
                 )
               }
             >
-              {({ isActive }) => (
-                <>
-                  <Icon className={clsx('size-[18px]', isActive ? 'text-pitch-400' : 'text-slate-500 group-hover:text-slate-300')} />
-                  {label}
-                </>
-              )}
+              <Icon aria-hidden className="size-[1.35rem] shrink-0" />
+              {label}
             </NavLink>
           ))}
         </nav>
         {user && (
-          <div className="m-3 rounded-2xl border border-white/[0.06] bg-white/[0.03] p-3">
-            <Link to="/profile" className="flex items-center gap-3">
-              {user.team ? <TeamCrest crest={user.team.crest} name={user.team.name} size={38} /> : <Avatar name={user.managerName} url={user.avatarUrl} />}
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-white">{user.team?.name ?? user.managerName}</p>
-                <p className="truncate text-xs text-slate-400">{user.managerName}</p>
-              </div>
+          <div className="mx-5 mb-5 flex items-center gap-2 rounded-2xl border-l-[3px] border-white/25 bg-white/[0.12] py-3 pl-3 pr-2">
+            <Link to="/profile" className="flex min-w-0 flex-1 items-center gap-3" title="Mi perfil">
+              {user.avatarUrl ? (
+                <img src={user.avatarUrl} alt="" className="size-10 shrink-0 rounded-full object-cover" />
+              ) : (
+                <span aria-hidden className="size-10 shrink-0 rounded-full bg-[radial-gradient(circle_at_35%_30%,#7dfcc4_0%,#12c77f_45%,#0b3d4a_100%)] shadow-[0_0_16px_-4px_rgb(3_255_136/0.8)]" />
+              )}
+              <span className="min-w-0">
+                <span className="block truncate font-display text-lg font-bold uppercase leading-tight text-white">{user.team?.name ?? user.managerName}</span>
+                <span className="block truncate text-sm font-medium uppercase text-lime-glow">{user.managerName}</span>
+              </span>
             </Link>
-            <button onClick={doLogout} className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg py-1.5 text-xs font-semibold text-slate-400 hover:bg-white/[0.06] hover:text-white">
-              <LogOut className="size-3.5" /> Cerrar sesión
+            <button onClick={doLogout} title="Cerrar sesión" aria-label="Cerrar sesión" className="grid size-9 shrink-0 place-items-center rounded-lg text-white/70 transition hover:bg-white/[0.1] hover:text-white">
+              <LogOut className="size-4" />
             </button>
           </div>
         )}
       </aside>
 
       {/* Barra superior */}
-      <header className="safe-top sticky top-0 z-30 border-b border-white/[0.06] bg-ink-900/80 backdrop-blur-xl">
-        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-3 px-4 sm:h-16 sm:px-6">
+      <header className="safe-top sticky top-0 z-30 border-b border-white/50 bg-[#0b2a3a]/35 backdrop-blur-md">
+        <div className="flex h-16 items-center justify-between gap-3 px-4 sm:px-6 lg:h-[4.75rem] lg:px-8">
           <div className="lg:hidden">
-            <Logo />
+            <Logo className="h-8" />
           </div>
-          <div className="hidden text-sm text-slate-400 lg:block">
-            Temporada <span className="font-semibold text-white">2026/27</span> · Premier League
-          </div>
-          <div className="flex items-center gap-1.5">
+          <p className="hidden items-baseline gap-5 lg:flex">
+            <span className="text-lg font-bold text-white">Temporada {config?.season ?? '—'}</span>
+            <span className="text-sm text-white/80">Premier League</span>
+          </p>
+          <div className="flex items-center gap-2 sm:gap-3">
             {user?.team && (
-              <Link to="/team" className="mr-1 hidden items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 py-1.5 text-sm sm:flex">
-                <Wallet className="size-4 text-pitch-400" />
-                <span className="font-semibold tabular-nums text-white">{money(user.team.budget)}</span>
+              <Link to="/team" title="Presupuesto disponible" className="hidden h-10 items-center gap-2.5 rounded-lg bg-[#101d25]/90 px-4 text-sm shadow-[0_6px_18px_-8px_rgb(0_0_0/0.6)] transition hover:bg-[#15272f] sm:flex">
+                <Wallet aria-hidden className="size-4 text-white/80" />
+                <span className="font-bold tabular-nums text-white">{money(user.team.budget)}</span>
               </Link>
             )}
             <NotificationBell />
-            <Link to="/profile" className="rounded-full" aria-label="Mi perfil">
-              <Avatar name={user?.managerName ?? '?'} url={user?.avatarUrl} size={34} />
+            <Link to="/profile" className="group rounded-full" aria-label="Mi perfil">
+              <HeaderAvatar name={user?.managerName ?? '?'} url={user?.avatarUrl} />
             </Link>
           </div>
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-5 sm:px-6 sm:pt-8 lg:pb-12">
+      <main className="mx-auto max-w-[1680px] px-4 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-5 sm:px-6 sm:pt-8 lg:px-8 lg:pb-12">
         <Suspense fallback={<LoadingBlock />}>
           <div key={location.pathname} className="animate-fade-up">
             <Outlet />
@@ -215,15 +240,15 @@ export default function AppLayout() {
       </main>
 
       {/* Navegación inferior (móvil) */}
-      <nav className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.08] bg-ink-850/95 backdrop-blur-xl lg:hidden">
+      <nav aria-label="Principal móvil" className="safe-bottom fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.12] bg-[#1c0c35]/95 backdrop-blur-xl lg:hidden">
         <div className="mx-auto grid max-w-lg grid-cols-5">
           {MOBILE_NAV.map(({ to, label, icon: Icon }) => (
-            <NavLink key={to} to={to} className={({ isActive }) => clsx('flex h-16 flex-col items-center justify-center gap-1 text-[11px] font-semibold', isActive ? 'text-pitch-400' : 'text-slate-400')}>
+            <NavLink key={to} to={to} className={({ isActive }) => clsx('flex h-16 flex-col items-center justify-center gap-1 text-[11px] font-semibold', isActive ? 'text-lime-glow' : 'text-white/70')}>
               <Icon className="size-[22px]" />
               {label}
             </NavLink>
           ))}
-          <button onClick={() => setMoreOpen(true)} className="flex h-16 flex-col items-center justify-center gap-1 text-[11px] font-semibold text-slate-400">
+          <button onClick={() => setMoreOpen(true)} className="flex h-16 flex-col items-center justify-center gap-1 text-[11px] font-semibold text-white/70">
             <Menu className="size-[22px]" />
             Más
           </button>
