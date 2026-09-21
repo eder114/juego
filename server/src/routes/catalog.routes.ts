@@ -6,7 +6,8 @@ import { intParam, parse } from '../lib/http';
 import { badRequest, notFound } from '../lib/errors';
 import { clubLiteSelect, playerSelect } from '../lib/dto';
 import { requireAuth } from '../middleware/auth';
-import { FIXTURE_STATUSES, NEWS_CATEGORIES, PLAYER_STATUSES, POSITIONS } from '../domain/constants';
+import { FIXTURE_STATUSES, NEWS_CATEGORIES, PLAYER_STATUSES, POSITIONS, SCORING_ACTIONS } from '../domain/constants';
+import { getSettings } from '../services/settings.service';
 import { aggFor, getPlayerAggregates, toPlayerDTO } from '../services/player-stats.service';
 import { fixtureInclude, getGameweekContext } from '../services/gameweek.service';
 import { clubDetail, leagueTable, marketTrends, teamOfTheWeek } from '../services/stats.service';
@@ -16,6 +17,34 @@ export const catalogRouter = Router();
 // ─────────────── Clubes (listado público: lo usa el registro) ───────────────
 catalogRouter.get('/clubs', async (_req, res) => {
   res.json(await prisma.club.findMany({ where: { isActive: true }, orderBy: { name: 'asc' } }));
+});
+
+// ─────────────── Configuración pública del juego (pantallas de acceso y reglamento) ───────────────
+catalogRouter.get('/config', async (_req, res) => {
+  const s = await getSettings();
+  const rules = await prisma.scoringRule.findMany({ where: { isActive: true }, orderBy: [{ position: 'asc' }, { points: 'desc' }] });
+  const squad = { GK: s.squad_gk, DEF: s.squad_def, MID: s.squad_mid, FWD: s.squad_fwd };
+  res.json({
+    season: s.season,
+    initialBudget: s.initial_budget,
+    squad,
+    squadSize: squad.GK + squad.DEF + squad.MID + squad.FWD,
+    starters: 11,
+    maxPerClub: s.max_players_per_club,
+    captainMultiplier: s.captain_multiplier,
+    viceCaptainEnabled: s.vice_captain_enabled,
+    autoSubs: s.auto_subs_enabled,
+    lockMode: s.lock_mode,
+    registrationOpen: s.registration_open,
+    scoring: rules.map((r) => ({
+      position: r.position,
+      action: r.action,
+      label: SCORING_ACTIONS[r.action]?.label ?? r.action,
+      mode: SCORING_ACTIONS[r.action]?.mode ?? 'per_unit',
+      points: r.points,
+      threshold: r.threshold,
+    })),
+  });
 });
 
 catalogRouter.use(requireAuth);

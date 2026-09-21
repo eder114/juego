@@ -1,6 +1,7 @@
 import { lazy, Suspense, type ReactNode } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
+import { homeFor } from './lib/routes';
 import { LoadingBlock } from './components/ui';
 import AppLayout from './components/layout/AppLayout';
 import AdminLayout from './components/layout/AdminLayout';
@@ -62,7 +63,7 @@ function RequireAuth({ children, admin }: { children: ReactNode; admin?: boolean
 function PublicOnly({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) return <FullScreenLoader />;
-  if (user) return <Navigate to={user.team ? '/dashboard' : '/profile'} replace />;
+  if (user) return <Navigate to={homeFor(user)} replace />;
   return <>{children}</>;
 }
 
@@ -72,7 +73,8 @@ export default function App() {
       <Routes>
         <Route path="/" element={<PublicOnly><Landing /></PublicOnly>} />
         <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />
-        <Route path="/register" element={<PublicOnly><Register /></PublicOnly>} />
+        {/* El registro gestiona su propia sesión: tras la fase 1 el usuario ya ha iniciado sesión y continúa el onboarding */}
+        <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
 

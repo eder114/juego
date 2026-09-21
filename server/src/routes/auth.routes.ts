@@ -22,7 +22,7 @@ authRouter.post('/register', authLimiter, async (req, res) => {
       email: emailSchema,
       password: passwordSchema,
       managerName: managerNameSchema,
-      teamName: teamNameSchema,
+      teamName: teamNameSchema.optional(),
       favoriteClubId: z.number().int().positive().nullish(),
       crest: crestSchema.optional(),
     }),

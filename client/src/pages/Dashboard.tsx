@@ -63,7 +63,7 @@ export default function Dashboard() {
   if (!data.team)
     return (
       <Card>
-        <EmptyState icon={<Trophy className="size-6" />} title="Aún no tienes equipo" description="Crea tu equipo Fantasy desde tu perfil para empezar a competir." action={<Link to="/profile"><Button>Crear equipo</Button></Link>} />
+        <EmptyState icon={<Trophy className="size-6" />} title="Aún no tienes equipo" description="Completa el registro creando tu equipo Fantasy para empezar a competir." action={<Link to="/register"><Button>Crear equipo</Button></Link>} />
       </Card>
     );
 

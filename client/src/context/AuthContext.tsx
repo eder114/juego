@@ -7,7 +7,7 @@ interface RegisterInput {
   email: string;
   password: string;
   managerName: string;
-  teamName: string;
+  teamName?: string;
   favoriteClubId?: number | null;
   crest?: Crest;
 }

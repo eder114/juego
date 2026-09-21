@@ -1,9 +1,11 @@
 import { useState, type FormEvent } from 'react';
-import { Link } from 'react-router-dom';
-import { MailCheck } from 'lucide-react';
+import { AtSign, MailCheck } from 'lucide-react';
 import { api, errorMessage } from '../../lib/api';
-import { Button, Field, Input } from '../../components/ui';
-import AuthShell from './AuthShell';
+import AuthLayout from '../../components/auth/AuthLayout';
+import { AuthSwitch, FormError, FormHeader } from '../../components/auth/FormHeader';
+import { GlassPanel } from '../../components/brand/GlassPanel';
+import { InputField } from '../../components/brand/forms';
+import { PrimaryButton } from '../../components/brand/PrimaryButton';
 
 export default function ForgotPassword() {
   const [email, setEmail] = useState('');
@@ -26,24 +28,38 @@ export default function ForgotPassword() {
   };
 
   return (
-    <AuthShell title="Recuperar contraseña" subtitle="Te enviaremos un enlace para crear una nueva contraseña." footer={<Link to="/login" className="font-semibold text-pitch-400">Volver a iniciar sesión</Link>}>
-      {sent ? (
-        <div className="card flex flex-col items-center gap-3 p-8 text-center">
-          <MailCheck className="size-10 text-pitch-400" />
-          <p className="font-semibold text-white">Revisa tu bandeja de entrada</p>
-          <p className="text-sm text-slate-400">Si {email} está registrado, recibirás un enlace válido durante 1 hora.</p>
-        </div>
-      ) : (
-        <form onSubmit={submit} className="space-y-4">
-          <Field label="Email">
-            <Input type="email" required autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="tu@email.com" />
-          </Field>
-          {error && <p className="text-sm text-red-400">{error}</p>}
-          <Button type="submit" size="lg" className="w-full" loading={loading} disabled={!email}>
-            Enviar enlace
-          </Button>
-        </form>
-      )}
-    </AuthShell>
+    <AuthLayout title={['Recupera', 'tu acceso', 'en segundos.']} subtitle="Te enviaremos un enlace seguro para crear una contraseña nueva y volver a tu equipo.">
+      <GlassPanel className="px-5 py-7 sm:p-10">
+        <FormHeader step="Acceso / Recuperación" title="Recuperar contraseña" subtitle="Escribe el email con el que te registraste." />
+        {sent ? (
+          <div className="mt-8 flex flex-col items-center gap-3 rounded-2xl border border-pitch-500/30 bg-pitch-500/10 p-6 text-center" role="status">
+            <MailCheck aria-hidden className="size-10 text-pitch-400" />
+            <p className="font-semibold text-white">Revisa tu bandeja de entrada</p>
+            <p className="text-sm text-brand-lilac">Si {email} está registrado, recibirás un enlace válido durante 1 hora.</p>
+          </div>
+        ) : (
+          <form onSubmit={submit} className="mt-8 space-y-5" noValidate>
+            <InputField
+              label="Email"
+              icon={AtSign}
+              type="email"
+              autoComplete="email"
+              inputMode="email"
+              required
+              placeholder="manager@ejemplo.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+            {error && <FormError>{error}</FormError>}
+            <div className="pt-2">
+              <PrimaryButton type="submit" loading={loading} disabled={!email}>
+                Enviar enlace
+              </PrimaryButton>
+            </div>
+          </form>
+        )}
+        <AuthSwitch question="¿Ya la recordaste?" to="/login" label="Inicia sesión" />
+      </GlassPanel>
+    </AuthLayout>
   );
 }

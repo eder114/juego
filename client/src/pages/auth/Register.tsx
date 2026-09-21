@@ -1,161 +1,279 @@
-import { useMemo, useState, type FormEvent } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, type FormEvent } from 'react';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Check, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, AtSign, LockKeyhole, Shield, UserRound } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 import { api, ApiError, errorMessage } from '../../lib/api';
 import type { Club, Crest } from '../../types';
-import { Button, Field, Input } from '../../components/ui';
 import { ClubCrest } from '../../components/sport';
 import { CrestEditor, DEFAULT_CREST } from '../../components/CrestEditor';
-import AuthShell from './AuthShell';
+import AuthLayout, { AuthLoading } from '../../components/auth/AuthLayout';
+import { AuthSwitch, FormError, FormHeader } from '../../components/auth/FormHeader';
+import { OnboardingProgress, type OnboardingStep } from '../../components/auth/OnboardingProgress';
+import { TermsCheckbox } from '../../components/auth/TermsCheckbox';
+import { GlassPanel } from '../../components/brand/GlassPanel';
+import { InputField, PasswordField, PasswordRequirements, passwordRules } from '../../components/brand/forms';
+import { PrimaryButton } from '../../components/brand/PrimaryButton';
+import { seasonCode, usePublicConfig } from '../../hooks/usePublicConfig';
 
-const passwordChecks = (p: string) => [
-  { ok: p.length >= 8, label: '8+ caracteres' },
-  { ok: /[A-Za-z]/.test(p), label: 'Una letra' },
-  { ok: /\d/.test(p), label: 'Un número' },
+const STEPS: OnboardingStep[] = [
+  { title: 'Cuenta', hint: 'Email y contraseña' },
+  { title: 'Equipo', hint: 'Nombre y club' },
+  { title: 'Escudo', hint: 'Colores e iniciales' },
 ];
 
+type FieldErrors = Record<string, string>;
+
+const fieldErrorsFrom = (err: unknown): FieldErrors =>
+  err instanceof ApiError && Array.isArray(err.details)
+    ? Object.fromEntries((err.details as { field: string; message: string }[]).map((f) => [f.field, f.message]))
+    : {};
+
+/**
+ * Registro en 3 fases (diseño de Figma "Crear cuenta"):
+ * 1. Cuenta → POST /auth/register (crea la cuenta e inicia sesión)
+ * 2. Equipo → nombre y club favorito
+ * 3. Escudo → POST /team + PATCH /users/me
+ * Si el usuario abandona tras la fase 1, al volver continúa en la fase 2.
+ */
 export default function Register() {
-  const { register } = useAuth();
+  const { user, loading, register, refresh } = useAuth();
   const navigate = useNavigate();
-  const [step, setStep] = useState(0);
-  const [form, setForm] = useState({ email: '', password: '', managerName: '', teamName: '', favoriteClubId: null as number | null });
-  const [crest, setCrest] = useState<Crest>(DEFAULT_CREST);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(false);
+  const toast = useToast();
+  const { data: config } = usePublicConfig();
   const { data: clubs } = useQuery({ queryKey: ['clubs'], queryFn: () => api.get<Club[]>('/clubs') });
 
-  const checks = useMemo(() => passwordChecks(form.password), [form.password]);
-  const set = (k: keyof typeof form, v: string | number | null) => setForm((f) => ({ ...f, [k]: v }));
+  const [step, setStep] = useState(0);
+  const [account, setAccount] = useState({ email: '', managerName: '', password: '' });
+  const [accepted, setAccepted] = useState(false);
+  const [team, setTeam] = useState({ name: '', favoriteClubId: null as number | null });
+  const [crest, setCrest] = useState<Crest>(DEFAULT_CREST);
+  const [errors, setErrors] = useState<FieldErrors>({});
+  const [busy, setBusy] = useState(false);
+  const [finishing, setFinishing] = useState(false);
 
-  const validateStep = () => {
-    const e: Record<string, string> = {};
-    if (step === 0) {
-      if (!/^\S+@\S+\.\S+$/.test(form.email)) e.email = 'Introduce un email válido';
-      if (!checks.every((c) => c.ok)) e.password = 'La contraseña no cumple los requisitos';
-      if (form.managerName.trim().length < 3) e.managerName = 'Mínimo 3 caracteres';
-    }
-    if (step === 1 && form.teamName.trim().length < 3) e.teamName = 'Mínimo 3 caracteres';
-    setErrors(e);
-    return Object.keys(e).length === 0;
+  /** Al corregir un campo desaparece su error (y el error general del formulario). */
+  const clearError = (...keys: string[]) =>
+    setErrors((prev) => {
+      if (!keys.some((k) => k in prev) && !prev.form) return prev;
+      const next = { ...prev };
+      for (const k of [...keys, 'form']) delete next[k];
+      return next;
+    });
+  const updateAccount = (key: keyof typeof account, value: string) => {
+    setAccount((a) => ({ ...a, [key]: value }));
+    clearError(key);
   };
 
-  const submit = async (ev: FormEvent) => {
-    ev.preventDefault();
-    if (!validateStep()) return;
-    if (step < 2) {
-      setStep(step + 1);
+  if (loading) return <AuthLoading />;
+  if (user?.team && !finishing) return <Navigate to="/dashboard" replace />;
+
+  // Con sesión iniciada y sin equipo, el onboarding continúa desde la fase 2
+  const current = user ? Math.max(step, 1) : 0;
+  const chip = config ? `ID: ${seasonCode(config.season)}` : undefined;
+  const registrationClosed = config?.registrationOpen === false && !user;
+
+  const submitAccount = async (e: FormEvent) => {
+    e.preventDefault();
+    const next: FieldErrors = {};
+    if (!/^\S+@\S+\.\S+$/.test(account.email.trim())) next.email = 'Introduce un email válido';
+    if (account.managerName.trim().length < 3) next.managerName = 'Mínimo 3 caracteres';
+    if (!passwordRules(account.password).every((r) => r.ok)) next.password = 'La contraseña no cumple los requisitos';
+    if (!accepted) next.terms = 'Debes aceptar las reglas del torneo y la política de privacidad';
+    setErrors(next);
+    if (Object.keys(next).length) return;
+
+    setBusy(true);
+    try {
+      await register({ email: account.email.trim(), managerName: account.managerName.trim(), password: account.password });
+      setStep(1);
+      toast.push('success', '¡Cuenta creada! Ahora crea tu equipo.');
+    } catch (err) {
+      setErrors({ ...fieldErrorsFrom(err), form: errorMessage(err) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const submitTeam = (e: FormEvent) => {
+    e.preventDefault();
+    if (team.name.trim().length < 3) {
+      setErrors({ teamName: 'El nombre del equipo debe tener al menos 3 caracteres' });
       return;
     }
-    setLoading(true);
+    setErrors({});
+    setStep(2);
+  };
+
+  const submitCrest = async (e: FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setFinishing(true);
     try {
-      await register({ ...form, crest: { ...crest, initials: crest.initials || undefined } as Crest });
+      await api.post('/team', { name: team.name.trim(), crest: { ...crest, initials: crest.initials || undefined } });
+      if (team.favoriteClubId) await api.patch('/users/me', { favoriteClubId: team.favoriteClubId });
       navigate('/market', { replace: true });
+      toast.push('success', `¡${team.name.trim()} está listo! Ficha a tus 15 jugadores.`);
+      void refresh();
     } catch (err) {
-      const fields = err instanceof ApiError && Array.isArray(err.details) ? (err.details as { field: string; message: string }[]) : [];
-      if (fields.length) setErrors(Object.fromEntries(fields.map((f) => [f.field, f.message])));
-      setErrors((prev) => ({ ...prev, form: errorMessage(err) }));
-      if (fields.some((f) => ['email', 'password', 'managerName'].includes(f.field)) || /email|mánager/i.test(errorMessage(err))) setStep(0);
+      setFinishing(false);
+      const fields = fieldErrorsFrom(err);
+      setErrors({ ...fields, form: errorMessage(err) });
+      if (fields.name) setStep(1);
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
   };
 
   return (
-    <AuthShell
-      title="Crea tu equipo"
-      subtitle="Recibirás £100M para fichar tu plantilla de 15 jugadores."
-      footer={
-        <>
-          ¿Ya tienes cuenta?{' '}
-          <Link to="/login" className="font-semibold text-pitch-400 hover:text-pitch-300">
-            Inicia sesión
-          </Link>
-        </>
-      }
+    <AuthLayout
+      title={['Crea tu equipo.', 'Compite con', 'tus amigos.']}
+      subtitle="Construye tu plantilla, consigue puntos cada jornada y demuestra quién domina tu liga."
+      onboarding={<OnboardingProgress steps={STEPS} current={current} />}
     >
-      <div className="mb-6 flex items-center gap-2">
-        {['Cuenta', 'Equipo', 'Escudo'].map((label, i) => (
-          <div key={label} className="flex flex-1 items-center gap-2">
-            <span className={clsx('grid size-7 place-items-center rounded-full text-xs font-bold', i < step ? 'bg-pitch-500 text-ink-950' : i === step ? 'bg-white text-ink-950' : 'bg-white/10 text-slate-400')}>
-              {i < step ? <Check className="size-4" /> : i + 1}
-            </span>
-            <span className={clsx('text-xs font-semibold', i === step ? 'text-white' : 'text-slate-500')}>{label}</span>
-            {i < 2 && <span className="h-px flex-1 bg-white/10" />}
-          </div>
-        ))}
-      </div>
-
-      <form onSubmit={submit} className="space-y-4" noValidate>
-        {step === 0 && (
+      <GlassPanel className="px-5 py-7 sm:p-10">
+        {current === 0 && (
           <>
-            <Field label="Email" error={errors.email}>
-              <Input type="email" autoComplete="email" value={form.email} onChange={(e) => set('email', e.target.value)} placeholder="tu@email.com" />
-            </Field>
-            <Field label="Nombre de mánager" error={errors.managerName}>
-              <Input autoComplete="nickname" value={form.managerName} onChange={(e) => set('managerName', e.target.value)} placeholder="Pep Guardiola" maxLength={30} />
-            </Field>
-            <Field label="Contraseña" error={errors.password}>
-              <Input type="password" autoComplete="new-password" value={form.password} onChange={(e) => set('password', e.target.value)} placeholder="••••••••" />
-            </Field>
-            <div className="flex flex-wrap gap-2">
-              {checks.map((c) => (
-                <span key={c.label} className={clsx('inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-semibold', c.ok ? 'bg-pitch-500/15 text-pitch-300' : 'bg-white/[0.05] text-slate-500')}>
-                  <Check className="size-3" /> {c.label}
-                </span>
-              ))}
-            </div>
-          </>
-        )}
-
-        {step === 1 && (
-          <>
-            <Field label="Nombre del equipo" error={errors.teamName}>
-              <Input value={form.teamName} onChange={(e) => set('teamName', e.target.value)} placeholder="Real Sofá FC" maxLength={30} />
-            </Field>
-            <div>
-              <p className="label mb-2">Club favorito (opcional)</p>
-              <div className="grid max-h-72 grid-cols-4 gap-2 overflow-y-auto pr-1 sm:grid-cols-5">
-                {clubs?.map((c) => (
-                  <button
-                    type="button"
-                    key={c.id}
-                    onClick={() => set('favoriteClubId', form.favoriteClubId === c.id ? null : c.id)}
-                    className={clsx('flex flex-col items-center gap-1 rounded-xl border p-2 transition', form.favoriteClubId === c.id ? 'border-pitch-500 bg-pitch-500/10' : 'border-white/[0.06] bg-white/[0.03] hover:border-white/20')}
-                    title={c.name}
-                  >
-                    <ClubCrest club={c} size={32} />
-                    <span className="text-[10px] font-bold text-slate-300">{c.shortName}</span>
-                  </button>
-                ))}
+            <FormHeader step="Paso 01 / Registro" chip={chip} title="Crea tu cuenta" subtitle="Empieza tu camino hacia la cima." />
+            {registrationClosed ? (
+              <div className="mt-8">
+                <FormError>El registro de nuevos mánagers está cerrado temporalmente. Vuelve a intentarlo más tarde.</FormError>
               </div>
-            </div>
+            ) : (
+              <form onSubmit={submitAccount} className="mt-8 space-y-5" noValidate>
+                <InputField
+                  label="Email"
+                  icon={AtSign}
+                  type="email"
+                  autoComplete="email"
+                  inputMode="email"
+                  required
+                  placeholder="manager@ejemplo.com"
+                  value={account.email}
+                  onChange={(e) => updateAccount('email', e.target.value)}
+                  error={errors.email}
+                />
+                <InputField
+                  label="Nombre de mánager"
+                  hint="Visible en tu liga"
+                  icon={UserRound}
+                  autoComplete="nickname"
+                  required
+                  maxLength={30}
+                  placeholder="Ej. KloppTactics o PepMaster"
+                  value={account.managerName}
+                  onChange={(e) => updateAccount('managerName', e.target.value)}
+                  error={errors.managerName}
+                />
+                <div className="space-y-3">
+                  <PasswordField
+                    label="Contraseña"
+                    icon={LockKeyhole}
+                    autoComplete="new-password"
+                    required
+                    placeholder="••••••••"
+                    value={account.password}
+                    onChange={(e) => updateAccount('password', e.target.value)}
+                    error={errors.password}
+                  />
+                  <PasswordRequirements password={account.password} />
+                </div>
+                <div className="pt-1">
+                  <TermsCheckbox
+                    checked={accepted}
+                    onChange={(v) => {
+                      setAccepted(v);
+                      clearError('terms');
+                    }}
+                    error={errors.terms}
+                  />
+                </div>
+                {errors.form && <FormError>{errors.form}</FormError>}
+                <div className="pt-2">
+                  <PrimaryButton type="submit" loading={busy}>
+                    Crear cuenta
+                  </PrimaryButton>
+                </div>
+              </form>
+            )}
+            <AuthSwitch question="¿Ya tienes cuenta?" to="/login" label="Inicia sesión" />
           </>
         )}
 
-        {step === 2 && <CrestEditor value={crest} onChange={setCrest} teamName={form.teamName} />}
+        {current === 1 && (
+          <>
+            <FormHeader step="Paso 02 / Equipo" chip={chip} title="Crea tu equipo" subtitle={`Hola, ${user?.managerName ?? 'mánager'}. Ponle nombre a tu equipo y elige tu club favorito.`} />
+            <form onSubmit={submitTeam} className="mt-8 space-y-6" noValidate>
+              <InputField
+                label="Nombre del equipo"
+                hint="Visible en las clasificaciones"
+                icon={Shield}
+                required
+                maxLength={30}
+                placeholder="Ej. Real Sofá FC"
+                value={team.name}
+                onChange={(e) => {
+                  setTeam({ ...team, name: e.target.value });
+                  clearError('teamName', 'name');
+                }}
+                error={errors.teamName ?? errors.name}
+              />
+              <fieldset>
+                <legend className="label-tech text-brand-lilac">
+                  Club favorito <span className="normal-case tracking-normal text-brand-lilac/60">(opcional)</span>
+                </legend>
+                <div className="mt-3 grid max-h-64 grid-cols-4 gap-2 overflow-y-auto pr-1 sm:grid-cols-5">
+                  {clubs?.map((c) => {
+                    const selected = team.favoriteClubId === c.id;
+                    return (
+                      <button
+                        type="button"
+                        key={c.id}
+                        aria-pressed={selected}
+                        title={c.name}
+                        onClick={() => setTeam({ ...team, favoriteClubId: selected ? null : c.id })}
+                        className={clsx(
+                          'flex flex-col items-center gap-1 rounded-xl border p-2 transition',
+                          selected ? 'border-pitch-400 bg-pitch-500/15 shadow-[0_0_18px_-6px_rgb(44_229_153/0.7)]' : 'border-white/10 bg-white/[0.04] hover:border-white/30',
+                        )}
+                      >
+                        <ClubCrest club={c} size={32} />
+                        <span className="font-tech text-[10px] font-bold text-white/80">{c.shortName}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </fieldset>
+              {errors.form && <FormError>{errors.form}</FormError>}
+              <PrimaryButton type="submit">Continuar</PrimaryButton>
+            </form>
+          </>
+        )}
 
-        {errors.form && <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">{errors.form}</p>}
-
-        <div className="flex gap-2 pt-2">
-          {step > 0 && (
-            <Button type="button" variant="secondary" size="lg" onClick={() => setStep(step - 1)} icon={<ChevronLeft className="size-4" />}>
-              Atrás
-            </Button>
-          )}
-          <Button type="submit" size="lg" className="flex-1" loading={loading}>
-            {step < 2 ? (
-              <>
-                Continuar <ChevronRight className="size-4" />
-              </>
-            ) : (
-              'Crear mi equipo'
-            )}
-          </Button>
-        </div>
-      </form>
-    </AuthShell>
+        {current === 2 && (
+          <>
+            <FormHeader step="Paso 03 / Escudo" chip={chip} title="Diseña tu escudo" subtitle="Así te verán tus rivales en las ligas y la clasificación." />
+            <form onSubmit={submitCrest} className="mt-8 space-y-6" noValidate>
+              <CrestEditor value={crest} onChange={setCrest} teamName={team.name} />
+              {errors.form && <FormError>{errors.form}</FormError>}
+              <div className="flex flex-col-reverse gap-3 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="inline-flex h-[3.6rem] items-center justify-center gap-2 rounded-2xl border border-white/20 px-5 font-semibold text-white/85 transition hover:bg-white/[0.08] sm:h-[3.75rem]"
+                >
+                  <ArrowLeft aria-hidden className="size-4" /> Atrás
+                </button>
+                <PrimaryButton type="submit" loading={busy} className="sm:flex-1">
+                  Crear mi equipo
+                </PrimaryButton>
+              </div>
+            </form>
+          </>
+        )}
+      </GlassPanel>
+    </AuthLayout>
   );
 }

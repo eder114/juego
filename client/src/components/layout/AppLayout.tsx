@@ -27,6 +27,7 @@ import { money, relativeTime } from '../../lib/format';
 import type { AppNotification } from '../../types';
 import { Avatar, TeamCrest } from '../sport';
 import { LoadingBlock } from '../ui';
+import { BrandMark } from '../brand/BrandLogo';
 const NAV = [
   { to: '/dashboard', label: 'Inicio', icon: LayoutDashboard },
   { to: '/team', label: 'Mi equipo', icon: Shirt },
@@ -44,14 +45,10 @@ const MOBILE_NAV = [NAV[0], NAV[2], NAV[3], NAV[4]];
 export function Logo({ compact }: { compact?: boolean }) {
   return (
     <Link to="/dashboard" className="flex items-center gap-2.5">
-      <span className="grid size-9 place-items-center rounded-xl bg-gradient-to-br from-pitch-400 to-pitch-700 shadow-glow">
-        <svg viewBox="0 0 24 24" className="size-5 text-ink-950" fill="currentColor" aria-hidden>
-          <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20Zm0 3.2 2.9 2.1-1.1 3.4h-3.6L9.1 7.3 12 5.2Zm-6.6 4 2.4.3 1.2 3.5-2 2.7-2.5-.9a7.9 7.9 0 0 1 .9-5.6Zm13.2 0a7.9 7.9 0 0 1 .9 5.6l-2.5.9-2-2.7 1.2-3.5 2.4-.3ZM10.2 16h3.6l1.3 2.6a7.9 7.9 0 0 1-6.2 0l1.3-2.6Z" />
-        </svg>
-      </span>
+      <BrandMark />
       {!compact && (
         <span className="font-display text-xl font-extrabold uppercase leading-none tracking-wide text-white">
-          Premier<span className="text-pitch-400">Fantasy</span>
+          Premier<span className="text-gradient-highlight">Fantasy</span>
         </span>
       )}
     </Link>

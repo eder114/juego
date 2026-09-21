@@ -38,7 +38,8 @@ export async function register(input: {
   email: string;
   password: string;
   managerName: string;
-  teamName: string;
+  /** Opcional: el onboarding crea la cuenta en la fase 1 y el equipo en las fases 2 y 3. */
+  teamName?: string;
   favoriteClubId?: number | null;
   crest?: object;
 }) {
@@ -57,7 +58,7 @@ export async function register(input: {
       favoriteClubId: input.favoriteClubId ?? null,
     },
   });
-  await createTeam(user.id, { name: input.teamName, crest: input.crest });
+  if (input.teamName) await createTeam(user.id, { name: input.teamName, crest: input.crest });
   await notify({
     userId: user.id,
     type: 'SYSTEM',

@@ -7,7 +7,7 @@ type Variant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'outline';
 type Size = 'sm' | 'md' | 'lg';
 
 const VARIANTS: Record<Variant, string> = {
-  primary: 'bg-pitch-500 text-ink-950 hover:bg-pitch-400 shadow-[0_8px_24px_-8px_rgb(34_197_94/0.6)]',
+  primary: 'bg-[image:var(--gradient-cta)] text-white shadow-cta hover:brightness-110',
   secondary: 'bg-white/[0.07] text-white hover:bg-white/[0.12] border border-white/10',
   ghost: 'text-slate-300 hover:bg-white/[0.06] hover:text-white',
   danger: 'bg-red-500/15 text-red-300 border border-red-500/30 hover:bg-red-500/25',
@@ -70,7 +70,7 @@ export function PageHeader({ title, subtitle, actions, eyebrow }: { title: React
     <div className="mb-5 flex flex-col gap-3 sm:mb-7 sm:flex-row sm:items-end sm:justify-between">
       <div className="min-w-0">
         {eyebrow && <p className="label mb-1 text-pitch-400">{eyebrow}</p>}
-        <h1 className="text-3xl font-extrabold uppercase leading-none sm:text-4xl">{title}</h1>
+        <h1 className="font-headline text-3xl font-normal uppercase leading-none tracking-[0.02em] sm:text-4xl">{title}</h1>
         {subtitle && <p className="mt-2 text-sm text-slate-400">{subtitle}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
@@ -170,15 +170,44 @@ export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () =>
   );
 }
 
-export function StatCard({ label, value, sub, icon, accent, className }: { label: string; value: ReactNode; sub?: ReactNode; icon?: ReactNode; accent?: boolean; className?: string }) {
+const DOTS = { mint: 'bg-pitch-500', violet: 'bg-brand-orchid', gold: 'bg-gold', red: 'bg-red-400' };
+
+/** Tarjeta de dato del diseño: etiqueta, icono en recuadro, cifra grande (+unidad) y línea con punto de color. */
+export function StatCard({
+  label,
+  value,
+  unit,
+  sub,
+  dot,
+  icon,
+  accent,
+  className,
+}: {
+  label: string;
+  value: ReactNode;
+  unit?: string;
+  sub?: ReactNode;
+  dot?: keyof typeof DOTS;
+  icon?: ReactNode;
+  accent?: boolean;
+  className?: string;
+}) {
   return (
-    <div className={clsx('card relative overflow-hidden p-4 sm:p-5', accent && 'border-pitch-500/30 bg-gradient-to-br from-pitch-600/25 via-ink-800/80 to-ink-800/80', className)}>
+    <div className={clsx('glass-card relative overflow-hidden p-4 sm:p-5', accent && 'border-pitch-500/35 bg-[linear-gradient(145deg,rgb(44_229_153/0.16),rgb(255_255_255/0.06)_60%)]', className)}>
       <div className="flex items-start justify-between gap-2">
-        <p className="label">{label}</p>
-        {icon && <span className={clsx('shrink-0', accent ? 'text-pitch-300' : 'text-slate-500')}>{icon}</span>}
+        <p className="min-w-0 text-[0.75rem] font-medium uppercase tracking-[0.04em] text-brand-lilac sm:text-[0.8125rem]">{label}</p>
+        {icon && <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-white/[0.08] text-brand-magenta [&_svg]:size-[1.125rem]">{icon}</span>}
       </div>
-      <p className="stat-number mt-2 text-3xl sm:text-4xl">{value}</p>
-      {sub && <div className="mt-1.5 text-xs text-slate-400">{sub}</div>}
+      <p className="mt-3 flex flex-wrap items-baseline gap-x-2">
+        <span className="stat-number text-[2rem] sm:text-[2.6rem]">{value}</span>
+        {unit && <span className="text-xs font-medium uppercase text-brand-lilac sm:text-sm">{unit}</span>}
+      </p>
+      {sub && (
+        <div className="mt-2 flex items-center gap-2 font-tech text-xs font-medium text-brand-lilac/90 sm:text-[0.8125rem]">
+          {dot && <span aria-hidden className={clsx('size-2 shrink-0 rounded-full', DOTS[dot])} />}
+          <span className="min-w-0">{sub}</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -194,7 +223,7 @@ export function Tabs<T extends string>({ tabs, value, onChange, className }: { t
           onClick={() => onChange(t.value)}
           className={clsx(
             'flex h-9 shrink-0 items-center gap-2 rounded-xl px-3.5 text-sm font-semibold transition',
-            value === t.value ? 'bg-pitch-500 text-ink-950' : 'bg-white/[0.05] text-slate-300 hover:bg-white/[0.1] hover:text-white',
+            value === t.value ? 'bg-[image:var(--gradient-cta)] text-white shadow-cta' : 'bg-white/[0.06] text-slate-300 hover:bg-white/[0.1] hover:text-white',
           )}
         >
           {t.label}
