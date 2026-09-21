@@ -112,10 +112,16 @@ export default function Register() {
     setBusy(true);
     setFinishing(true);
     try {
-      await api.post('/team', { name: team.name.trim(), crest: { ...crest, initials: crest.initials || undefined } });
+      const created = await api.post<{ economyVersion: number }>('/team', { name: team.name.trim(), crest: { ...crest, initials: crest.initials || undefined } });
       if (team.favoriteClubId) await api.patch('/users/me', { favoriteClubId: team.favoriteClubId });
-      navigate('/market', { replace: true });
-      toast.push('success', `¡${team.name.trim()} está listo! Ficha a tus 15 jugadores.`);
+      // Economía de liga: el equipo inicial llega al crear o unirse a una liga
+      navigate(created.economyVersion === 2 ? '/leagues' : '/market', { replace: true });
+      toast.push(
+        'success',
+        created.economyVersion === 2
+          ? `¡${team.name.trim()} está listo! Crea una liga o únete a una para recibir tu equipo inicial.`
+          : `¡${team.name.trim()} está listo! ${config ? `Ficha a tus ${config.squadSize} jugadores.` : 'Ficha a tu plantilla.'}`,
+      );
       void refresh();
     } catch (err) {
       setFinishing(false);

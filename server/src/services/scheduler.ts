@@ -4,6 +4,8 @@ import { getGameweekContext, syncGameweekStatuses } from './gameweek.service';
 import { processGameweek } from './scoring.service';
 import { syncFromProvider } from './import.service';
 import { notifyMany, type NotificationInput } from './notification.service';
+import { tickMarkets } from './market.service';
+import { syncCoaches } from './coach.service';
 
 /**
  * Tareas periódicas: estados de jornada, cierre y puntuación automática,
@@ -80,6 +82,13 @@ async function autoSync() {
   console.log('[scheduler] Sincronización FPL completada', summary);
 }
 
+/** Entrenadores reales: una vez al día basta (los cambios de banquillo son poco frecuentes). */
+async function dailyCoachSync() {
+  const settings = await getSettings();
+  if (!settings.provider_auto_sync) return;
+  await syncCoaches();
+}
+
 export function startScheduler() {
   const every = (ms: number, name: string, fn: () => Promise<unknown>) => {
     setTimeout(() => guarded(name, fn), 5_000);
@@ -89,6 +98,9 @@ export function startScheduler() {
     every(60_000, 'gameweeks', tickGameweeks),
     every(10 * 60_000, 'reminders', sendReminders),
     every(15 * 60_000, 'provider-sync', autoSync),
+    // Mercado diario de cada liga: se genera en cuanto empieza el nuevo ciclo (también bajo demanda al abrir el mercado)
+    every(60_000, 'league-markets', tickMarkets),
+    every(24 * 3600_000, 'coaches-sync', dailyCoachSync),
   ];
   return () => timers.forEach(clearInterval);
 }

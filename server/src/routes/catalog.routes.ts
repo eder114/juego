@@ -24,11 +24,24 @@ catalogRouter.get('/config', async (_req, res) => {
   const s = await getSettings();
   const rules = await prisma.scoringRule.findMany({ where: { isActive: true }, orderBy: [{ position: 'asc' }, { points: 'desc' }] });
   const squad = { GK: s.squad_gk, DEF: s.squad_def, MID: s.squad_mid, FWD: s.squad_fwd };
+  const v2 = s.economy_v2_new_teams;
   res.json({
     season: s.season,
-    initialBudget: s.initial_budget,
+    // Con la economía de liga los equipos nuevos reciben el presupuesto de liga (miles de £ → décimas)
+    initialBudget: v2 ? Math.round(s.v2_initial_budget / 100) : s.initial_budget,
     squad,
-    squadSize: squad.GK + squad.DEF + squad.MID + squad.FWD,
+    squadSize: v2 ? 11 + s.v2_starter_bench : squad.GK + squad.DEF + squad.MID + squad.FWD,
+    economy: {
+      enabled: v2,
+      initialBudgetK: s.v2_initial_budget,
+      starterPlayers: 11 + s.v2_starter_bench,
+      starterBench: s.v2_starter_bench,
+      maxSquad: s.v2_max_squad,
+      playersPerMarket: s.market_players_per_cycle,
+      coachesMin: s.market_coaches_min,
+      coachesMax: s.market_coaches_max,
+      sellPercent: s.v2_sell_percent,
+    },
     starters: 11,
     maxPerClub: s.max_players_per_club,
     captainMultiplier: s.captain_multiplier,

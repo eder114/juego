@@ -41,10 +41,25 @@ function LegalContent({ tab, onTab }: { tab: LegalTab; onTab: (t: LegalTab) => v
         <LoadingBlock />
       ) : tab === 'rules' ? (
         <ul className="list-disc space-y-2.5 pl-5 text-sm leading-relaxed text-slate-200 marker:text-pitch-400">
-          <li>Empiezas la temporada {cfg.season} con un presupuesto de <b>{formatBudget(cfg.initialBudget)}</b>.</li>
-          <li>
-            Tu plantilla tiene <b>{cfg.squadSize} jugadores</b>: {POSITIONS.map((p) => `${cfg.squad[p]} ${POSITION_PLURAL[p].toLowerCase()}`).join(', ')}.
-          </li>
+          {cfg.economy.enabled ? (
+            <>
+              <li>
+                Cada liga es una partida con su propia economía: al entrar recibes <b>{cfg.economy.starterPlayers} jugadores reales al azar</b> (11 titulares y {cfg.economy.starterBench} suplentes) y{' '}
+                <b>{formatBudget(Math.round(cfg.economy.initialBudgetK / 100))}</b> que se suman a tu equipo inicial.
+              </li>
+              <li>
+                Cada día llega un <b>mercado compartido</b> con {cfg.economy.playersPerMarket} jugadores y {cfg.economy.coachesMin === cfg.economy.coachesMax ? cfg.economy.coachesMin : `${cfg.economy.coachesMin}–${cfg.economy.coachesMax}`} entrenadores: todos los mánagers de la liga ven los mismos y cada uno solo puede tener un dueño.
+              </li>
+              <li>Tu plantilla admite hasta {cfg.economy.maxSquad} jugadores. Al vender recibes el {cfg.economy.sellPercent}% del valor actual del jugador.</li>
+            </>
+          ) : (
+            <>
+              <li>Empiezas la temporada {cfg.season} con un presupuesto de <b>{formatBudget(cfg.initialBudget)}</b>.</li>
+              <li>
+                Tu plantilla tiene <b>{cfg.squadSize} jugadores</b>: {POSITIONS.map((p) => `${cfg.squad[p]} ${POSITION_PLURAL[p].toLowerCase()}`).join(', ')}.
+              </li>
+            </>
+          )}
           <li>Puedes tener como máximo <b>{cfg.maxPerClub} jugadores</b> del mismo club.</li>
           <li>Cada jornada alineas {cfg.starters} titulares en una formación permitida ({FORMATIONS}) y ordenas a tus suplentes.</li>
           <li>
@@ -57,7 +72,10 @@ function LegalContent({ tab, onTab }: { tab: LegalTab; onTab: (t: LegalTab) => v
               ? 'Cada jugador queda bloqueado cuando empieza el partido de su club; los demás se pueden cambiar hasta su partido.'
               : 'La alineación queda bloqueada al cierre de la jornada.'}
           </li>
-          <li>Los puntos salen de las estadísticas reales de cada partido de la Premier League, y los precios cambian tras cada jornada según rendimiento y demanda.</li>
+          <li>
+            Los puntos salen de las estadísticas reales de cada partido de la Premier League, y los {cfg.economy.enabled ? 'valores' : 'precios'} cambian tras cada jornada según el rendimiento.
+          </li>
+          {cfg.economy.enabled && <li>Las cartas (doble puntos, presión…) se consiguen como recompensa, se activan antes del cierre de la jornada y solo modifican puntos Fantasy, nunca estadísticas reales.</li>}
         </ul>
       ) : tab === 'scoring' ? (
         <div className="grid gap-4 sm:grid-cols-2">

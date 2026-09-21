@@ -1,6 +1,7 @@
 import { prisma } from '../lib/prisma';
 import { clubLiteSelect, playerSelect } from '../lib/dto';
 import { pickBestLineup } from '../domain/lineup';
+import { formatK } from '../domain/economy';
 import { BLOCKING_STATUSES, type PlayerStatus, type Position } from '../domain/constants';
 import { aggFor, getPlayerAggregates, toPlayerDTO } from './player-stats.service';
 import { computeStandings, getUserGlobalPosition } from './ranking.service';
@@ -146,8 +147,14 @@ export async function dashboard(userId: string) {
   // Alertas calculadas en el momento
   const alerts: { level: 'danger' | 'warning' | 'info'; title: string; message: string; link: string }[] = [];
   const req = squadRequirements(settings);
-  const size = req.GK + req.DEF + req.MID + req.FWD;
-  if (team && squad.length < size) alerts.push({ level: 'warning', title: 'Plantilla incompleta', message: `Tienes ${squad.length}/${size} jugadores`, link: '/market' });
+  const v2 = team?.economyVersion === 2;
+  // Economía de liga: la plantilla empieza con 11 + suplentes y puede crecer hasta el máximo configurado
+  const size = v2 ? settings.v2_max_squad : req.GK + req.DEF + req.MID + req.FWD;
+  if (v2 && team && !team.economyLeagueId)
+    alerts.push({ level: 'warning', title: 'Tu equipo aún no juega en ninguna liga', message: `Crea o únete a una liga para recibir ${11 + settings.v2_starter_bench} jugadores y ${formatK(settings.v2_initial_budget)}`, link: '/leagues' });
+  else if (v2 && squad.length > 0 && squad.length < 11)
+    alerts.push({ level: 'warning', title: 'No puedes alinear un once completo', message: `Tienes ${squad.length} jugadores: ficha en el mercado de tu liga`, link: '/market' });
+  else if (!v2 && team && squad.length < size) alerts.push({ level: 'warning', title: 'Plantilla incompleta', message: `Tienes ${squad.length}/${size} jugadores`, link: '/market' });
   const unavailable = squad.filter((p) => BLOCKING_STATUSES.includes(p.status as PlayerStatus));
   if (unavailable.length) alerts.push({ level: 'danger', title: 'Tienes jugadores no disponibles', message: unavailable.map((p) => p.displayName).join(', '), link: '/lineup' });
   const doubtful = squad.filter((p) => p.status === 'DOUBTFUL');
@@ -174,8 +181,10 @@ export async function dashboard(userId: string) {
     globalRank: position.row?.rank ?? null,
     globalMovement: position.row?.movement ?? 'same',
     totalManagers: position.total,
-    teamValue: squad.reduce((s, p) => s + p.price, 0),
-    budget: team?.budget ?? 0,
+    teamValue: v2 ? squad.reduce((s, p) => s + (p.marketValue ?? 0), 0) : squad.reduce((s, p) => s + p.price, 0),
+    budget: v2 ? (team?.wallet ?? 0) : (team?.budget ?? 0),
+    economyVersion: team?.economyVersion ?? 1,
+    economyLeague: v2 && team?.economyLeagueId ? await prisma.league.findUnique({ where: { id: team.economyLeagueId }, select: { id: true, name: true } }) : null,
     squadCount: squad.length,
     squadSize: size,
     currentGameweek: current ? { id: current.id, name: current.name, status: current.status, deadline: current.deadline } : null,

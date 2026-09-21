@@ -97,6 +97,7 @@ adminRouter.post('/users/:id/budget', async (req, res) => {
   const body = parse(z.object({ amount: z.number().int().min(-2000).max(2000), description: z.string().trim().min(3).max(120) }), req.body);
   const team = await prisma.fantasyTeam.findUnique({ where: { userId: id } });
   if (!team) throw notFound('El usuario no tiene equipo');
+  if (team.economyVersion === 2) throw badRequest('Este equipo juega la economía de liga: ajusta su monedero desde Administración → Economía');
   if (team.budget + body.amount < 0) throw badRequest('El presupuesto no puede quedar negativo');
   const balance = team.budget + body.amount;
   await prisma.$transaction([

@@ -59,10 +59,15 @@ export interface Player {
   chanceOfPlaying: number | null;
   news: string | null;
   isActive: boolean;
+  /** Economía de liga: valor en miles de £ */
+  marketValue: number | null;
+  rarity: Rarity;
   stats: PlayerStats;
   inSquad?: boolean;
   isFavorite?: boolean;
 }
+
+export type Rarity = 'COMMON' | 'UNCOMMON' | 'RARE' | 'EPIC' | 'STAR';
 
 export interface Crest {
   shape?: 'shield' | 'round' | 'classic' | 'diamond';
@@ -80,7 +85,122 @@ export interface Me {
   avatarUrl: string | null;
   createdAt: string;
   favoriteClub: ClubLite | null;
-  team: { id: number; name: string; crest: Crest; budget: number; totalPoints: number; createdAt: string } | null;
+  team: {
+    id: number;
+    name: string;
+    crest: Crest;
+    budget: number;
+    totalPoints: number;
+    createdAt: string;
+    /** 1 = sistema clásico (décimas de millón) · 2 = economía de liga (miles de £) */
+    economyVersion: 1 | 2;
+    wallet: number;
+    economyLeague: { id: number; name: string } | null;
+  } | null;
+}
+
+export interface Coach {
+  id: number;
+  displayName: string;
+  firstName: string;
+  lastName: string;
+  nationality: string | null;
+  photoUrl: string | null;
+  marketValue: number;
+  rarity: Rarity;
+  isActive: boolean;
+  club: ClubLite | null;
+}
+
+export interface ValueTrend {
+  change: number;
+  variationBp: number;
+  gameweekId?: number | null;
+}
+
+export interface MarketListing {
+  id: number;
+  assetType: 'PLAYER' | 'COACH';
+  rarity: Rarity;
+  listingPrice: number;
+  slot: number;
+  status: 'AVAILABLE' | 'SOLD' | 'UNAVAILABLE';
+  soldAt: string | null;
+  buyer: { teamName: string; managerName: string } | null;
+  boughtByMe: boolean;
+  canBuy: boolean;
+  blockReason: string | null;
+  player: Player | null;
+  coach: Coach | null;
+  trend: ValueTrend | null;
+}
+
+export type LeagueMarket =
+  | { mode: 'CLASSIC' }
+  | { mode: 'NO_LEAGUE'; wallet: number; eligibleLeagues: { id: number; name: string }[] }
+  | {
+      mode: 'LEAGUE';
+      serverTime: string;
+      league: { id: number; name: string; timezone: string; resetTime: string; participants: number; pityCounter: number };
+      cycle: { id: number; cycleDate: string; startsAt: string; endsAt: string };
+      wallet: number;
+      marketOpen: boolean;
+      squadCount: number;
+      coachCount: number;
+      limits: { maxSquad: number; perPosition: Record<Position, number>; maxPerClub: number; maxCoaches: number };
+      players: MarketListing[];
+      coaches: MarketListing[];
+      pollSeconds: number;
+    };
+
+export interface EconomyTransaction {
+  id: number;
+  type: string;
+  amount: number;
+  balanceBefore: number | null;
+  balanceAfter: number;
+  currency: 'TENTHS' | 'K';
+  description: string;
+  reference: string | null;
+  createdAt: string;
+}
+
+export interface PowerUpCard {
+  id: number;
+  code: string;
+  name: string;
+  description: string;
+  effect: 'DOUBLE_POINTS' | 'WEAKEN';
+  rarity: 'COMMON' | 'RARE' | 'EPIC' | 'LEGENDARY';
+  effectValue: number;
+  target: 'OWN_PLAYER' | 'RIVAL_PLAYER';
+  isActive: boolean;
+  obtainable: boolean;
+  maxPerGameweek: number;
+}
+
+export type LetterState = 'correct' | 'present' | 'absent';
+
+export interface WordleState {
+  type: 'WORDLE';
+  enabled: boolean;
+  date: string;
+  serverTime: string;
+  nextResetAt: string;
+  timezone: string;
+  wordLength: number;
+  maxAttempts: number;
+  rewards: number[];
+  rewardCurrency: 'K' | 'TENTHS';
+  hasTeam: boolean;
+  streak: { current: number; best: number; requiresWin: boolean };
+  milestones: { days: number; money: number; card: string | null }[];
+  attemptsUsed: number;
+  guesses: { word: string; result: LetterState[] }[];
+  completed: boolean;
+  won: boolean;
+  answer: string | null;
+  reward: { amount: number; currency: 'K' | 'TENTHS'; streakBonus: number; streakDays: number; cardCode: string | null } | null;
 }
 
 export interface Fixture {
@@ -172,6 +292,18 @@ export interface Squad {
   clubCounts: Record<string, number>;
   marketOpen: boolean;
   sellAtPurchasePrice: boolean;
+  /** Solo en la economía de liga (importes en miles de £) */
+  economy: SquadEconomy | null;
+}
+
+export interface SquadEconomy {
+  wallet: number;
+  league: { id: number; name: string } | null;
+  squadValue: number;
+  sellPercent: number;
+  limits: { maxSquad: number; perPosition: Record<Position, number> };
+  players: { playerId: number; marketValue: number; purchasePrice: number | null; source: 'STARTER' | 'MARKET' | null; saleValue: number; trend: ValueTrend | null }[];
+  coach: (Coach & { purchasePrice: number; saleValue: number }) | null;
 }
 
 export interface LineupFixture {
@@ -197,6 +329,9 @@ export interface LineupEntry {
   multiplier: number;
   autoSubIn: boolean;
   autoSubOut: boolean;
+  /** Cartas que afectan al jugador en la jornada y su efecto en puntos */
+  cards: ('DOUBLE_POINTS' | 'WEAKEN')[];
+  cardDelta: number;
 }
 
 export interface LineupView {
@@ -213,6 +348,8 @@ export interface LineupView {
   activeCaptainId: number | null;
   points: number;
   benchPoints: number;
+  cardPoints: number;
+  coach: { id: number; displayName: string; photoUrl: string | null; club: { shortName: string; name: string; crestUrl: string | null } | null; points: number } | null;
   players: LineupEntry[];
   validation: { valid: boolean; errors: string[]; warnings: string[] };
   gameweeks: { id: number; name: string; status: string; points: number | null }[];

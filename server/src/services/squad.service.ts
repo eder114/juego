@@ -16,23 +16,31 @@ export async function getTeamByUser(userId: string) {
   return team;
 }
 
+/** El mercado libre clásico solo está disponible para equipos del sistema antiguo. */
+function assertClassicEconomy(team: { economyVersion: number }) {
+  if (team.economyVersion === 2) throw badRequest('Tu equipo juega la economía de liga: ficha y vende desde el mercado de tu liga');
+}
+
 export async function createTeam(userId: string, data: { name: string; crest?: object }) {
   const existing = await prisma.fantasyTeam.findUnique({ where: { userId } });
   if (existing) throw conflict('Ya tienes un equipo Fantasy');
   const settings = await getSettings();
+  // Economía de liga: el equipo recibe su plantilla inicial y su presupuesto al entrar en la economía de una liga
+  const v2 = settings.economy_v2_new_teams;
   const team = await prisma.$transaction(async (tx) => {
     const t = await tx.fantasyTeam.create({
-      data: { userId, name: data.name, crest: JSON.stringify(data.crest ?? {}), budget: settings.initial_budget },
+      data: { userId, name: data.name, crest: JSON.stringify(data.crest ?? {}), budget: v2 ? 0 : settings.initial_budget, economyVersion: v2 ? 2 : 1 },
     });
-    await tx.transaction.create({
-      data: {
-        teamId: t.id,
-        type: 'INITIAL_BUDGET',
-        amount: settings.initial_budget,
-        balanceAfter: settings.initial_budget,
-        description: `Presupuesto inicial de temporada ${settings.season}`,
-      },
-    });
+    if (!v2)
+      await tx.transaction.create({
+        data: {
+          teamId: t.id,
+          type: 'INITIAL_BUDGET',
+          amount: settings.initial_budget,
+          balanceAfter: settings.initial_budget,
+          description: `Presupuesto inicial de temporada ${settings.season}`,
+        },
+      });
     const global = await tx.league.findFirst({ where: { type: 'GLOBAL', isSystem: true } });
     if (global) {
       await tx.leagueMember.upsert({
@@ -96,11 +104,63 @@ export async function getSquad(userId: string) {
     clubCounts,
     marketOpen: settings.market_open,
     sellAtPurchasePrice: settings.sell_at_purchase_price,
+    economy: team.economyVersion === 2 ? await economySquadDetails(team, entries.map((e) => e.player), settings) : null,
+  };
+}
+
+/** Datos de la economía de liga para «Mi equipo»: monedero, valores (k£), precio de compra/venta y entrenador. */
+async function economySquadDetails(
+  team: { id: number; wallet: number; economyLeagueId: number | null },
+  players: { id: number; marketValue: number | null; position: string }[],
+  settings: Awaited<ReturnType<typeof getSettings>>,
+) {
+  const [league, ownerships, coach, trends] = await Promise.all([
+    team.economyLeagueId ? prisma.league.findUnique({ where: { id: team.economyLeagueId }, select: { id: true, name: true } }) : null,
+    prisma.leaguePlayerOwnership.findMany({ where: { teamId: team.id }, select: { playerId: true, purchasePrice: true, source: true, acquiredAt: true } }),
+    prisma.leagueCoachOwnership.findFirst({ where: { teamId: team.id }, include: { coach: { include: { club: { select: { id: true, name: true, shortName: true, crestUrl: true, primaryColor: true, secondaryColor: true, commonName: true, stadium: true } } } } } }),
+    prisma.playerValuation.findMany({ where: { playerId: { in: players.map((p) => p.id) }, reason: 'PERFORMANCE' }, orderBy: { createdAt: 'desc' }, select: { playerId: true, change: true, variationBp: true } }),
+  ]);
+  const own = new Map(ownerships.map((o) => [o.playerId, o]));
+  const trend = new Map<number, { change: number; variationBp: number }>();
+  for (const t of trends) if (!trend.has(t.playerId)) trend.set(t.playerId, t);
+  const sale = (value: number) => Math.round((value * settings.v2_sell_percent) / 100);
+  const squadValue = players.reduce((sum, p) => sum + (p.marketValue ?? 0), 0);
+  return {
+    wallet: team.wallet,
+    league,
+    squadValue,
+    sellPercent: settings.v2_sell_percent,
+    limits: { maxSquad: settings.v2_max_squad, perPosition: { GK: settings.v2_max_gk, DEF: settings.v2_max_def, MID: settings.v2_max_mid, FWD: settings.v2_max_fwd } },
+    players: players.map((p) => {
+      const o = own.get(p.id);
+      return {
+        playerId: p.id,
+        marketValue: p.marketValue ?? 0,
+        purchasePrice: o?.purchasePrice ?? null,
+        source: o?.source ?? null,
+        saleValue: sale(p.marketValue ?? 0),
+        trend: trend.get(p.id) ?? null,
+      };
+    }),
+    coach: coach
+      ? {
+          id: coach.coach.id,
+          displayName: coach.coach.displayName,
+          photoUrl: coach.coach.photoUrl,
+          nationality: coach.coach.nationality,
+          rarity: coach.coach.rarity,
+          marketValue: coach.coach.marketValue,
+          purchasePrice: coach.purchasePrice,
+          saleValue: sale(coach.coach.marketValue),
+          isActive: coach.coach.isActive,
+          club: coach.coach.club,
+        }
+      : null,
   };
 }
 
 /** Si la jornada en curso ya ha empezado, congela la alineación antes de tocar la plantilla. */
-async function snapshotCurrentLineup(teamId: number) {
+export async function snapshotCurrentLineup(teamId: number) {
   const { current } = await getGameweekContext();
   if (!current || current.isProcessed) return null;
   const locks = await getGameweekLocks(current.id);
@@ -113,6 +173,7 @@ export async function buyPlayer(userId: string, playerId: number) {
   const settings = await getSettings();
   if (!settings.market_open) throw badRequest('El mercado está cerrado');
   const team = await getTeamByUser(userId);
+  assertClassicEconomy(team);
   const player = await prisma.player.findUnique({ where: { id: playerId }, include: { club: true } });
   if (!player || !player.isActive) throw notFound('Jugador no disponible en el mercado');
   if (!player.club.isActive) throw badRequest('El club del jugador no participa en la temporada activa');
@@ -165,6 +226,7 @@ export async function sellPlayer(userId: string, playerId: number) {
   const settings = await getSettings();
   if (!settings.market_open) throw badRequest('El mercado está cerrado');
   const team = await getTeamByUser(userId);
+  assertClassicEconomy(team);
   const entry = await prisma.fantasyTeamPlayer.findUnique({
     where: { teamId_playerId: { teamId: team.id, playerId } },
     include: { player: { include: { club: true } } },

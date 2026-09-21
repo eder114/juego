@@ -11,6 +11,8 @@ import { catalogRouter } from './routes/catalog.routes';
 import { gameRouter } from './routes/game.routes';
 import { avatarHandler, userRouter } from './routes/user.routes';
 import { adminRouter } from './routes/admin.routes';
+import { economyRouter } from './routes/economy.routes';
+import { adminEconomyRouter } from './routes/admin-economy.routes';
 import { bootstrapState } from './services/bootstrap.service';
 
 export function createApp() {
@@ -58,9 +60,11 @@ export function createApp() {
 
   app.get('/api/avatars/:userId', avatarHandler);
   app.use('/api/auth', authRouter);
+  app.use('/api/admin/economy', adminEconomyRouter);
   app.use('/api/admin', adminRouter);
   app.use('/api', catalogRouter);
   app.use('/api', gameRouter);
+  app.use('/api', economyRouter);
   app.use('/api', userRouter);
   app.use('/api', notFoundHandler);
 

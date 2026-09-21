@@ -9,3 +9,4 @@ server/prisma/postgres/
 server/data/raw/
 .DS_Store
 .claude/
+server/tests/.tmp/

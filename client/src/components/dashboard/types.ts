@@ -10,7 +10,10 @@ export interface DashboardData {
   globalMovement: 'up' | 'down' | 'same' | 'new';
   totalManagers: number;
   teamValue: number;
+  /** Clásico: décimas de millón · economía de liga: miles de £ (monedero) */
   budget: number;
+  economyVersion: 1 | 2;
+  economyLeague: { id: number; name: string } | null;
   squadCount: number;
   squadSize: number;
   currentGameweek: { id: number; name: string; status: string; deadline: string } | null;

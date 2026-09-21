@@ -255,6 +255,21 @@ export default function Lineup() {
                 <p className="label">Formación</p>
                 <p className="stat-number mt-1 text-4xl">{state.formation}</p>
               </div>
+              {(view.coach || view.cardPoints !== 0) && (
+                <div className="card col-span-3 flex flex-wrap items-center justify-center gap-x-6 gap-y-1 p-2.5 text-sm text-slate-300">
+                  {view.coach && (
+                    <span>
+                      Entrenador: <b className="text-white">{view.coach.displayName}</b> ({view.coach.club?.shortName ?? '—'}){' '}
+                      <b className={view.coach.points >= 0 ? 'text-pitch-300' : 'text-red-300'}>{view.coach.points > 0 ? '+' : ''}{view.coach.points} pts</b>
+                    </span>
+                  )}
+                  {view.cardPoints !== 0 && (
+                    <span>
+                      Cartas: <b className={view.cardPoints >= 0 ? 'text-pitch-300' : 'text-red-300'}>{view.cardPoints > 0 ? '+' : ''}{view.cardPoints} pts</b>
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

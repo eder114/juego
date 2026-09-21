@@ -69,6 +69,19 @@
 
   --animate-fade-up: fade-up 0.35s ease-out both;
   --animate-pop: pop 0.25s ease-out both;
+  --animate-flip: tile-flip 0.5s ease-in-out both;
+  --animate-shake: shake 0.4s ease-in-out;
+
+  @keyframes tile-flip {
+    0% { transform: rotateX(0deg); }
+    50% { transform: rotateX(90deg); }
+    100% { transform: rotateX(0deg); }
+  }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20%, 60% { transform: translateX(-6px); }
+    40%, 80% { transform: translateX(6px); }
+  }
 
   @keyframes fade-up {
     from { opacity: 0; transform: translateY(8px); }

@@ -5,6 +5,8 @@ import { Globe2, KeyRound, Lock, Mail, Plus, Search, Trophy, Users } from 'lucid
 import { api, errorMessage } from '../lib/api';
 import type { Movement } from '../types';
 import { useToast } from '../context/ToastContext';
+import { useAuth } from '../context/AuthContext';
+import { useEconomyTerms } from '../hooks/usePublicConfig';
 import { Badge, Button, Card, EmptyState, ErrorState, Field, Input, LoadingBlock, Modal, PageHeader, Select, Tabs } from '../components/ui';
 import { Avatar, MovementIndicator } from '../components/sport';
 
@@ -48,17 +50,17 @@ export default function Leagues() {
   const [search, setSearch] = useState('');
   const navigate = useNavigate();
   const toast = useToast();
-  const qc = useQueryClient();
 
   const mine = useQuery({ queryKey: ['leagues', 'mine'], queryFn: () => api.get<MyLeague[]>('/leagues') });
   const invites = useQuery({ queryKey: ['leagues', 'invites'], queryFn: () => api.get<Invite[]>('/leagues/invites') });
   const publicLeagues = useQuery({ queryKey: ['leagues', 'public', search], queryFn: () => api.get<PublicLeague[]>(`/leagues/public?search=${encodeURIComponent(search)}`), enabled: tab === 'public' });
 
+  const afterJoin = useAfterJoin();
   const joinPublic = useMutation({
     mutationFn: (id: number) => api.post(`/leagues/${id}/join`),
     onSuccess: (_, id) => {
       toast.push('success', '¡Te has unido a la liga!');
-      qc.invalidateQueries({ queryKey: ['leagues'] });
+      afterJoin();
       navigate(`/leagues/${id}`);
     },
     onError: (e) => toast.push('error', errorMessage(e)),
@@ -67,7 +69,7 @@ export default function Leagues() {
     mutationFn: ({ id, accept }: { id: number; accept: boolean }) => api.post<{ accepted: boolean; leagueId?: number }>(`/leagues/invites/${id}`, { accept }),
     onSuccess: (res) => {
       toast.push(res.accepted ? 'success' : 'info', res.accepted ? 'Invitación aceptada' : 'Invitación rechazada');
-      qc.invalidateQueries({ queryKey: ['leagues'] });
+      afterJoin();
       if (res.leagueId) navigate(`/leagues/${res.leagueId}`);
     },
     onError: (e) => toast.push('error', errorMessage(e)),
@@ -225,16 +227,27 @@ const TYPE_OPTIONS = [
   { value: 'PUBLIC', label: 'Liga pública', hint: 'Visible en el buscador para cualquier mánager' },
 ];
 
+/** Entrar en una liga con economía de liga puede repartir el equipo inicial: se refrescan saldo, plantilla y mercado. */
+function useAfterJoin() {
+  const qc = useQueryClient();
+  const { refresh } = useAuth();
+  return () => {
+    for (const key of ['leagues', 'team', 'dashboard', 'league-market', 'lineup']) qc.invalidateQueries({ queryKey: [key] });
+    void refresh();
+  };
+}
+
 function CreateLeagueModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [form, setForm] = useState({ name: '', description: '', type: 'PRIVATE', password: '', maxMembers: 20, startGameweek: 1 });
   const toast = useToast();
-  const qc = useQueryClient();
   const navigate = useNavigate();
+  const afterJoin = useAfterJoin();
+  const terms = useEconomyTerms();
   const create = useMutation({
-    mutationFn: () => api.post<{ id: number; code: string }>('/leagues', { ...form, description: form.description || null, password: form.type === 'PUBLIC' || !form.password ? null : form.password }),
+    mutationFn: () => api.post<{ id: number; code: string; economy?: { joined: boolean } }>('/leagues', { ...form, description: form.description || null, password: form.type === 'PUBLIC' || !form.password ? null : form.password }),
     onSuccess: (league) => {
-      toast.push('success', `Liga creada. Código de invitación: ${league.code}`);
-      qc.invalidateQueries({ queryKey: ['leagues'] });
+      toast.push('success', league.economy?.joined ? `Liga creada (código ${league.code}). ¡Ya tienes tu equipo inicial y ${terms.budget}!` : `Liga creada. Código de invitación: ${league.code}`);
+      afterJoin();
       onClose();
       navigate(`/leagues/${league.id}`);
     },
@@ -278,6 +291,9 @@ function CreateLeagueModal({ open, onClose }: { open: boolean; onClose: () => vo
             </Select>
           </Field>
         </div>
+        <p className="rounded-xl bg-white/[0.05] px-3 py-2 text-xs text-slate-300">
+          La liga tendrá un <b className="text-white">mercado diario compartido</b>: cada mánager recibe {terms.players} al azar y {terms.budget}, y cada jugador solo puede tener un dueño en la liga.
+        </p>
         {form.type !== 'PUBLIC' && (
           <Field label="Contraseña (opcional)" hint="Se pedirá además del código para unirse">
             <Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} autoComplete="new-password" />
@@ -301,13 +317,13 @@ function JoinLeagueModal({ open, onClose }: { open: boolean; onClose: () => void
   const [password, setPassword] = useState('');
   const [needsPassword, setNeedsPassword] = useState(false);
   const toast = useToast();
-  const qc = useQueryClient();
   const navigate = useNavigate();
+  const afterJoin = useAfterJoin();
   const join = useMutation({
     mutationFn: () => api.post<{ id: number; name: string }>('/leagues/join', { code, password: password || null }),
     onSuccess: (league) => {
       toast.push('success', `Te has unido a ${league.name}`);
-      qc.invalidateQueries({ queryKey: ['leagues'] });
+      afterJoin();
       onClose();
       navigate(`/leagues/${league.id}`);
     },

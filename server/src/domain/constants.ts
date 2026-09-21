@@ -138,17 +138,86 @@ export const DEFAULT_SCORING_RULES: DefaultRule[] = [
   r('FWD', 'bonus', 1, false),
 ];
 
-export type SettingType = 'number' | 'boolean' | 'string' | 'select' | 'money';
+/**
+ * Tipos de ajuste: money = décimas de millón (sistema clásico) · moneyk = miles de £ (economía de liga)
+ * text = lista multilínea · json = estructura validada por el servidor · timezone = zona IANA.
+ */
+export type SettingType = 'number' | 'boolean' | 'string' | 'select' | 'money' | 'moneyk' | 'text' | 'json' | 'timezone';
 
 export interface SettingDef {
   value: unknown;
   label: string;
-  group: 'Temporada' | 'Plantilla' | 'Alineación' | 'Mercado' | 'Precios' | 'Datos' | 'Usuarios';
+  group:
+    | 'Temporada'
+    | 'Plantilla'
+    | 'Alineación'
+    | 'Mercado'
+    | 'Precios'
+    | 'Datos'
+    | 'Usuarios'
+    | 'Economía de liga'
+    | 'Equipo inicial'
+    | 'Mercado de liga'
+    | 'Rareza'
+    | 'Valoración'
+    | 'Entrenadores'
+    | 'Cartas'
+    | 'Desafíos diarios';
   type: SettingType;
   options?: string[];
   min?: number;
   max?: number;
+  hint?: string;
 }
+
+export const PLAYER_RARITIES = ['COMMON', 'UNCOMMON', 'RARE', 'EPIC', 'STAR'] as const;
+export type PlayerRarity = (typeof PLAYER_RARITIES)[number];
+export const CARD_RARITIES = ['COMMON', 'RARE', 'EPIC', 'LEGENDARY'] as const;
+export type CardRarity = (typeof CARD_RARITIES)[number];
+export const CARD_EFFECTS = ['DOUBLE_POINTS', 'WEAKEN'] as const;
+export type CardEffect = (typeof CARD_EFFECTS)[number];
+export const CHALLENGE_TYPES = ['WORDLE'] as const;
+export type ChallengeType = (typeof CHALLENGE_TYPES)[number];
+
+/** Palabras iniciales del Wordle (5 letras, vocabulario futbolístico). Editables desde administración. */
+export const DEFAULT_WORDLE_WORDS = [
+  'BALON', 'CAMPO', 'FALTA', 'PENAL', 'GOLES', 'TIROS', 'PASES', 'CRACK', 'JUEGO', 'DUELO',
+  'RIVAL', 'LIDER', 'MARCA', 'DERBI', 'FINAL', 'GRADA', 'SOCIO', 'FICHA', 'VENTA', 'CARTA',
+  'BANCO', 'PUNTO', 'TABLA', 'CHUTE', 'TOQUE', 'AMAGO', 'ZURDO', 'MEDIO', 'NUEVE', 'BOTAS',
+  'GANAR', 'JUGAR', 'SAQUE', 'BANDA', 'LINEA', 'FORMA', 'RACHA', 'TACOS', 'HIMNO', 'PRIMA',
+  'TRATO', 'FIRMA', 'PUJAR', 'VALLA', 'VELOZ', 'EXITO', 'HEROE', 'ASTRO', 'IDOLO', 'LIGAS',
+  'COPAS', 'ARCOS', 'CORTO', 'LARGO', 'PALCO', 'PRESA', 'TECHO', 'MOVER', 'ROBAR', 'CESTA',
+];
+
+/** Hitos de racha por defecto (dinero en miles de £; card = código de carta del catálogo). */
+export const DEFAULT_STREAK_MILESTONES = [
+  { days: 3, money: 250, card: null },
+  { days: 7, money: 500, card: 'DOUBLE_POINTS' },
+  { days: 14, money: 750, card: null },
+  { days: 30, money: 1000, card: 'PRESSURE' },
+];
+
+/** Catálogo inicial de cartas (el administrador puede editarlas o desactivarlas). */
+export const DEFAULT_CARDS = [
+  {
+    code: 'DOUBLE_POINTS',
+    name: 'Doble puntos',
+    description: 'Elige un jugador de tu plantilla antes del cierre: sus puntos Fantasy de la jornada se multiplican por 2.',
+    effect: 'DOUBLE_POINTS',
+    rarity: 'RARE',
+    effectValue: 200,
+    target: 'OWN_PLAYER',
+  },
+  {
+    code: 'PRESSURE',
+    name: 'Presión',
+    description: 'Elige un jugador de un rival de tu liga antes del cierre: pierde un porcentaje de sus puntos Fantasy positivos de la jornada. Sus estadísticas reales no cambian.',
+    effect: 'WEAKEN',
+    rarity: 'EPIC',
+    effectValue: 20,
+    target: 'RIVAL_PLAYER',
+  },
+] as const;
 
 /** Configuración general editable desde el panel de administración. */
 export const SETTINGS_DEFS = {
@@ -181,6 +250,103 @@ export const SETTINGS_DEFS = {
   price_max: { value: 200, label: 'Precio máximo', group: 'Precios', type: 'money', min: 50, max: 400 },
   provider_auto_sync: { value: false, label: 'Sincronización automática con la API de FPL (cada 15 min)', group: 'Datos', type: 'boolean' },
   registration_open: { value: true, label: 'Registro de usuarios abierto', group: 'Usuarios', type: 'boolean' },
+
+  // ─────────────── Economía de liga (v2) ───────────────
+  economy_v2_new_leagues: { value: true, label: 'Las ligas nuevas usan la economía de liga (mercado compartido)', group: 'Economía de liga', type: 'boolean' },
+  economy_v2_new_teams: { value: true, label: 'Los equipos nuevos juegan la economía de liga (reciben equipo inicial al entrar en una liga)', group: 'Economía de liga', type: 'boolean' },
+  v2_initial_budget: { value: 100000, label: 'Presupuesto inicial', group: 'Economía de liga', type: 'moneyk', min: 0, max: 2000000 },
+  v2_max_squad: { value: 18, label: 'Máximo de jugadores en plantilla', group: 'Economía de liga', type: 'number', min: 11, max: 30 },
+  v2_max_gk: { value: 3, label: 'Máximo de porteros', group: 'Economía de liga', type: 'number', min: 1, max: 6 },
+  v2_max_def: { value: 7, label: 'Máximo de defensas', group: 'Economía de liga', type: 'number', min: 5, max: 12 },
+  v2_max_mid: { value: 7, label: 'Máximo de centrocampistas', group: 'Economía de liga', type: 'number', min: 5, max: 12 },
+  v2_max_fwd: { value: 5, label: 'Máximo de delanteros', group: 'Economía de liga', type: 'number', min: 3, max: 10 },
+  v2_sell_percent: { value: 100, label: 'Venta: % del valor actual que recibe el vendedor', group: 'Economía de liga', type: 'number', min: 10, max: 100 },
+
+  v2_starter_bench: { value: 2, label: 'Suplentes del equipo inicial (los titulares son siempre 11)', group: 'Equipo inicial', type: 'number', min: 0, max: 4 },
+  v2_starter_formation: { value: 'RANDOM', label: 'Formación del equipo inicial', group: 'Equipo inicial', type: 'select', options: ['RANDOM', ...FORMATIONS] },
+  v2_starter_w_common: { value: 60, label: 'Peso de rareza COMMON', group: 'Equipo inicial', type: 'number', min: 0, max: 100 },
+  v2_starter_w_uncommon: { value: 28, label: 'Peso de rareza UNCOMMON', group: 'Equipo inicial', type: 'number', min: 0, max: 100 },
+  v2_starter_w_rare: { value: 10, label: 'Peso de rareza RARE', group: 'Equipo inicial', type: 'number', min: 0, max: 100 },
+  v2_starter_w_epic: { value: 2, label: 'Peso de rareza EPIC', group: 'Equipo inicial', type: 'number', min: 0, max: 100 },
+  v2_starter_w_star: { value: 0, label: 'Peso de rareza STAR (0 = excluidas)', group: 'Equipo inicial', type: 'number', min: 0, max: 100 },
+
+  market_players_per_cycle: { value: 10, label: 'Jugadores por mercado diario', group: 'Mercado de liga', type: 'number', min: 1, max: 30 },
+  market_coaches_min: { value: 1, label: 'Entrenadores por mercado (mínimo)', group: 'Mercado de liga', type: 'number', min: 0, max: 5 },
+  market_coaches_max: { value: 2, label: 'Entrenadores por mercado (máximo)', group: 'Mercado de liga', type: 'number', min: 0, max: 5 },
+  market_default_timezone: { value: 'Europe/London', label: 'Zona horaria por defecto de las ligas nuevas', group: 'Mercado de liga', type: 'timezone' },
+  market_max_same_position: { value: 5, label: 'Máximo de jugadores de la misma posición por mercado (diversidad)', group: 'Mercado de liga', type: 'number', min: 1, max: 30 },
+  market_cooldown_hours: { value: 48, label: 'Horas hasta que un jugador vendido puede volver al mercado', group: 'Mercado de liga', type: 'number', min: 0, max: 720 },
+  market_w_common: { value: 45, label: 'Probabilidad COMMON (%)', group: 'Mercado de liga', type: 'number', min: 0, max: 100 },
+  market_w_uncommon: { value: 30, label: 'Probabilidad UNCOMMON (%)', group: 'Mercado de liga', type: 'number', min: 0, max: 100 },
+  market_w_rare: { value: 18, label: 'Probabilidad RARE (%)', group: 'Mercado de liga', type: 'number', min: 0, max: 100 },
+  market_w_epic: { value: 6, label: 'Probabilidad EPIC (%)', group: 'Mercado de liga', type: 'number', min: 0, max: 100 },
+  market_w_star: { value: 1, label: 'Probabilidad STAR (%)', group: 'Mercado de liga', type: 'number', min: 0, max: 100 },
+  pity_min_rarity: { value: 'EPIC', label: 'Pity: rareza que cuenta como «alta»', group: 'Mercado de liga', type: 'select', options: ['RARE', 'EPIC', 'STAR'] },
+  pity_step_percent: { value: 25, label: 'Pity: aumento por cada día sin rareza alta (%)', group: 'Mercado de liga', type: 'number', min: 0, max: 200 },
+  pity_max_multiplier: { value: 4, label: 'Pity: multiplicador máximo', group: 'Mercado de liga', type: 'number', min: 1, max: 20 },
+  pity_hard_days: { value: 7, label: 'Pity: días para garantizar un jugador de rareza alta (0 = nunca)', group: 'Mercado de liga', type: 'number', min: 0, max: 60 },
+
+  rarity_pct_star: { value: 3, label: 'STAR: % superior de jugadores', group: 'Rareza', type: 'number', min: 0, max: 50 },
+  rarity_pct_epic: { value: 9, label: 'EPIC: % siguiente', group: 'Rareza', type: 'number', min: 0, max: 50 },
+  rarity_pct_rare: { value: 18, label: 'RARE: % siguiente', group: 'Rareza', type: 'number', min: 0, max: 60 },
+  rarity_pct_uncommon: { value: 30, label: 'UNCOMMON: % siguiente (el resto es COMMON)', group: 'Rareza', type: 'number', min: 0, max: 80 },
+  rarity_w_value: { value: 50, label: 'Peso del valor de mercado', group: 'Rareza', type: 'number', min: 0, max: 100 },
+  rarity_w_points: { value: 30, label: 'Peso de los puntos Fantasy de la temporada', group: 'Rareza', type: 'number', min: 0, max: 100 },
+  rarity_w_form: { value: 20, label: 'Peso del rendimiento reciente', group: 'Rareza', type: 'number', min: 0, max: 100 },
+
+  valuation_base: { value: 10000, label: 'Valor inicial de un jugador de £4.0M en FPL', group: 'Valoración', type: 'moneyk', min: 100, max: 100000, hint: 'Valor inicial = base × (precio FPL / 4.0)^exponente' },
+  valuation_exponent: { value: 2.5, label: 'Exponente de la curva de valor inicial', group: 'Valoración', type: 'number', min: 1, max: 5 },
+  value_min: { value: 500, label: 'Valor mínimo', group: 'Valoración', type: 'moneyk', min: 0, max: 100000 },
+  value_max: { value: 250000, label: 'Valor máximo', group: 'Valoración', type: 'moneyk', min: 1000, max: 5000000 },
+  valuation_sensitivity: { value: 4, label: 'Sensibilidad (% por cada desviación de rendimiento)', group: 'Valoración', type: 'number', min: 0, max: 50 },
+  valuation_var_min: { value: -8, label: 'Variación mínima por jornada (%)', group: 'Valoración', type: 'number', min: -50, max: 0 },
+  valuation_var_max: { value: 8, label: 'Variación máxima por jornada (%)', group: 'Valoración', type: 'number', min: 0, max: 50 },
+  valuation_w_last: { value: 40, label: 'Peso de la última jornada', group: 'Valoración', type: 'number', min: 0, max: 100 },
+  valuation_w_avg: { value: 40, label: 'Peso del promedio reciente', group: 'Valoración', type: 'number', min: 0, max: 100 },
+  valuation_w_trend: { value: 20, label: 'Peso de la tendencia', group: 'Valoración', type: 'number', min: 0, max: 100 },
+  valuation_window: { value: 5, label: 'Jornadas del promedio reciente', group: 'Valoración', type: 'number', min: 2, max: 10 },
+  valuation_scale_points: { value: 6, label: 'Puntos que equivalen a una desviación de rendimiento', group: 'Valoración', type: 'number', min: 1, max: 30 },
+  valuation_consistency: { value: 0.5, label: 'Amortiguación por irregularidad (0 = sin efecto)', group: 'Valoración', type: 'number', min: 0, max: 5 },
+  valuation_elasticity: { value: 0.15, label: 'Elasticidad del valor (valores altos cambian menos en %)', group: 'Valoración', type: 'number', min: 0, max: 1 },
+  valuation_min_change: { value: 0.3, label: 'Cambio mínimo para aplicar (%)', group: 'Valoración', type: 'number', min: 0, max: 5 },
+
+  coach_value_factor: { value: 60, label: 'Valor inicial del entrenador (% del valor medio del once de su club)', group: 'Entrenadores', type: 'number', min: 1, max: 300 },
+  coach_max_per_team: { value: 1, label: 'Entrenador por equipo (0 = desactivado)', group: 'Entrenadores', type: 'number', min: 0, max: 1 },
+  coach_points_win: { value: 3, label: 'Puntos por victoria', group: 'Entrenadores', type: 'number', min: -10, max: 20 },
+  coach_points_draw: { value: 1, label: 'Puntos por empate', group: 'Entrenadores', type: 'number', min: -10, max: 20 },
+  coach_points_loss: { value: -1, label: 'Puntos por derrota', group: 'Entrenadores', type: 'number', min: -10, max: 20 },
+  coach_points_clean_sheet: { value: 1, label: 'Puntos por portería a cero', group: 'Entrenadores', type: 'number', min: -10, max: 20 },
+  coach_points_goal: { value: 0, label: 'Puntos por gol a favor', group: 'Entrenadores', type: 'number', min: -5, max: 5 },
+
+  card_captain_stacking: {
+    value: 'MAX',
+    label: 'Doble puntos sobre el capitán',
+    group: 'Cartas',
+    type: 'select',
+    options: ['MAX', 'STACK'],
+    hint: 'MAX: se aplica el mayor multiplicador (sin acumular) · STACK: se multiplican',
+  },
+  card_max_active_per_gameweek: { value: 2, label: 'Cartas activas por equipo y jornada', group: 'Cartas', type: 'number', min: 0, max: 10 },
+  card_weaken_max_per_target: { value: 1, label: 'Cartas de presión por jugador rival y jornada', group: 'Cartas', type: 'number', min: 1, max: 5 },
+
+  challenge_timezone: { value: 'Europe/London', label: 'Zona horaria del reinicio diario', group: 'Desafíos diarios', type: 'timezone' },
+  wordle_enabled: { value: true, label: 'Wordle diario activo', group: 'Desafíos diarios', type: 'boolean' },
+  wordle_max_attempts: { value: 6, label: 'Intentos del Wordle', group: 'Desafíos diarios', type: 'number', min: 1, max: 10 },
+  wordle_reward_1: { value: 1000, label: 'Premio acertando en el 1.er intento', group: 'Desafíos diarios', type: 'moneyk', min: 0, max: 100000 },
+  wordle_reward_2: { value: 1000, label: 'Premio en el 2.º intento', group: 'Desafíos diarios', type: 'moneyk', min: 0, max: 100000 },
+  wordle_reward_3: { value: 750, label: 'Premio en el 3.er intento', group: 'Desafíos diarios', type: 'moneyk', min: 0, max: 100000 },
+  wordle_reward_4: { value: 750, label: 'Premio en el 4.º intento', group: 'Desafíos diarios', type: 'moneyk', min: 0, max: 100000 },
+  wordle_reward_5: { value: 600, label: 'Premio en el 5.º intento', group: 'Desafíos diarios', type: 'moneyk', min: 0, max: 100000 },
+  wordle_reward_6: { value: 500, label: 'Premio en el 6.º intento o posteriores', group: 'Desafíos diarios', type: 'moneyk', min: 0, max: 100000 },
+  wordle_words: { value: DEFAULT_WORDLE_WORDS.join('\n'), label: 'Palabras del Wordle (una por línea, 5 letras)', group: 'Desafíos diarios', type: 'text' },
+  streak_requires_win: { value: true, label: 'La racha solo cuenta los desafíos ganados', group: 'Desafíos diarios', type: 'boolean' },
+  streak_milestones: {
+    value: JSON.stringify(DEFAULT_STREAK_MILESTONES),
+    label: 'Premios por racha',
+    group: 'Desafíos diarios',
+    type: 'json',
+    hint: '[{"days":3,"money":250,"card":null}] · money en miles de £ · card = código de carta',
+  },
 } satisfies Record<string, SettingDef>;
 
 export type SettingKey = keyof typeof SETTINGS_DEFS;

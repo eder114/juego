@@ -172,6 +172,8 @@ export function toPlayerDTO(p: PlayerRow, agg: PlayerAgg) {
     chanceOfPlaying: p.chanceOfPlaying,
     news: p.news,
     isActive: p.isActive,
+    marketValue: p.marketValue,
+    rarity: p.rarity,
     stats: agg,
   };
 }

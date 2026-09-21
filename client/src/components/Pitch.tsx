@@ -146,7 +146,8 @@ function Token({ entry, editable, onClick, ...visual }: TokenProps) {
 function TokenVisual({ entry, showPoints, isCaptain, isVice, captainActive, selected, target, bench, dragging }: Partial<TokenProps> & { entry: LineupEntry; showPoints: boolean; dragging?: boolean }) {
   const p = entry.player;
   const fixture = entry.fixtures[0];
-  const points = entry.points * Math.max(1, captainActive ? 2 : 1);
+  const points = entry.points * Math.max(1, captainActive ? 2 : 1) + (entry.cardDelta ?? 0);
+  const cardLabel = entry.cards?.includes('DOUBLE_POINTS') ? '×2' : entry.cards?.includes('WEAKEN') ? '−%' : null;
   const unavailable = p.status !== 'AVAILABLE';
   return (
     <div className={clsx('flex w-[62px] flex-col items-center sm:w-[92px]', dragging && 'scale-110')}>
@@ -160,6 +161,14 @@ function TokenVisual({ entry, showPoints, isCaptain, isVice, captainActive, sele
         {entry.locked && (
           <span className="absolute -bottom-0.5 -left-1 grid size-4.5 place-items-center rounded-full bg-ink-900 text-slate-300 ring-1 ring-white/20" title="Bloqueado: su partido ya ha comenzado">
             <Lock className="size-2.5" />
+          </span>
+        )}
+        {cardLabel && (
+          <span
+            className={clsx('absolute -top-2 left-1/2 -translate-x-1/2 rounded-full px-1.5 text-[9px] font-extrabold leading-4 ring-2 ring-ink-900', entry.cards.includes('DOUBLE_POINTS') ? 'bg-fuchsia-400 text-ink-950' : 'bg-red-500 text-white')}
+            title={entry.cards.includes('DOUBLE_POINTS') ? 'Carta Doble puntos' : 'Bajo presión de un rival'}
+          >
+            {cardLabel}
           </span>
         )}
         {entry.autoSubIn && <ArrowUp className="absolute -bottom-1 -right-1 size-4 rounded-full bg-pitch-500 p-0.5 text-ink-950" />}

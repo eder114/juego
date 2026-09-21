@@ -39,6 +39,8 @@ model User {
   avatar          UserAvatar?
   invitesSent     LeagueInvite[]       @relation("InviteSender")
   invitesReceived LeagueInvite[]       @relation("InviteReceiver")
+  challengeAttempts DailyChallengeAttempt[]
+  streaks           DailyStreak[]
 
   @@map("users")
 }
@@ -81,6 +83,7 @@ model Club {
   fans         User[]
   statistics   PlayerStatistic[]
   news         News[]
+  coaches      Coach[]
 
   @@map("clubs")
 }
@@ -103,10 +106,16 @@ model Player {
   chanceOfPlaying Int?
   news            String?
   isActive        Boolean   @default(true)
+  // Economía de liga (v2): valor de mercado en miles de £ (100000 = £100M) y rareza calculada
+  marketValue     Int?
+  rarity          String    @default("COMMON") // COMMON | UNCOMMON | RARE | EPIC | STAR
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
   club          Club                @relation(fields: [clubId], references: [id], onDelete: Restrict)
+  valuations    PlayerValuation[]
+  ownerships    LeaguePlayerOwnership[]
+  listings      MarketListing[]
   prices        PlayerPrice[]
   statistics    PlayerStatistic[]
   injuries      PlayerInjury[]
@@ -164,6 +173,7 @@ model Gameweek {
   status        String   @default("UPCOMING") // UPCOMING | LIVE | FINISHED
   isProcessed   Boolean  @default(false) // puntuación definitiva calculada
   pricesUpdated Boolean  @default(false)
+  valuationsUpdated Boolean @default(false) // valores de la economía de liga actualizados
   reminderSent  Boolean  @default(false)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -242,16 +252,28 @@ model FantasyTeam {
   userId      String   @unique
   name        String
   crest       String   @default("{}") // JSON: {shape, primary, secondary, pattern, initials}
-  budget      Int
+  budget      Int // sistema clásico: décimas de millón
   totalPoints Int      @default(0)
+  // Economía: 1 = clásica (mercado libre global), 2 = economía de liga (mercado compartido)
+  economyVersion  Int  @default(1)
+  economyLeagueId Int? // liga cuya economía juega el equipo (una "partida")
+  wallet          Int  @default(0) // economía de liga: miles de £
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  economyLeague League?            @relation("EconomyLeague", fields: [economyLeagueId], references: [id], onDelete: SetNull)
   players      FantasyTeamPlayer[]
   lineups      Lineup[]
   transfers    Transfer[]
   transactions Transaction[]
+  playerOwnerships LeaguePlayerOwnership[]
+  coachOwnerships  LeagueCoachOwnership[]
+  cards            TeamCard[]
+  cardActivations  CardActivation[] @relation("CardOwnerTeam")
+  cardsReceived    CardActivation[] @relation("CardTargetTeam")
+
+  @@index([economyLeagueId])
 
   @@map("fantasy_teams")
 }
@@ -281,11 +303,15 @@ model Lineup {
   points        Int      @default(0)
   benchPoints   Int      @default(0)
   isFinal       Boolean  @default(false)
+  coachId       Int? // entrenador que puntúa en esta jornada (congelado al empezar la jornada)
+  coachPoints   Int      @default(0)
+  cardPoints    Int      @default(0) // efecto neto de las cartas sobre el total
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   team     FantasyTeam    @relation(fields: [teamId], references: [id], onDelete: Cascade)
   gameweek Gameweek       @relation(fields: [gameweekId], references: [id], onDelete: Cascade)
+  coach    Coach?         @relation(fields: [coachId], references: [id], onDelete: SetNull)
   players  LineupPlayer[]
 
   @@unique([teamId, gameweekId])
@@ -303,6 +329,7 @@ model LineupPlayer {
   multiplier    Int     @default(1) // 0 = no suma, 1, 2 (capitán)
   autoSubIn     Boolean @default(false)
   autoSubOut    Boolean @default(false)
+  cardDelta     Int     @default(0) // puntos añadidos/restados por cartas
 
   lineup Lineup @relation(fields: [lineupId], references: [id], onDelete: Cascade)
   player Player @relation(fields: [playerId], references: [id], onDelete: Restrict)
@@ -331,19 +358,29 @@ model Transfer {
 }
 
 model Transaction {
-  id           Int      @id @default(autoincrement())
-  teamId       Int
-  transferId   Int?     @unique
-  type         String // INITIAL_BUDGET | PURCHASE | SALE | ADJUSTMENT | REWARD
-  amount       Int // con signo
-  balanceAfter Int
-  description  String
-  createdAt    DateTime @default(now())
+  id            Int      @id @default(autoincrement())
+  teamId        Int
+  transferId    Int?     @unique
+  // Clásico: INITIAL_BUDGET | PURCHASE | SALE | ADJUSTMENT | REWARD
+  // Economía de liga: INITIAL_BUDGET | PLAYER_PURCHASE | PLAYER_SALE | COACH_PURCHASE | COACH_SALE |
+  //   DAILY_CHALLENGE_REWARD | STREAK_REWARD | CARD_REWARD | ADMIN_ADJUSTMENT | ECONOMY_RESET | OTHER_REWARD
+  type          String
+  amount        Int // con signo
+  balanceAfter  Int
+  description   String
+  currency      String   @default("TENTHS") // TENTHS = décimas de millón (clásico) · K = miles de £ (economía de liga)
+  balanceBefore Int?
+  userId        String?
+  leagueId      Int?
+  reference     String? // entidad relacionada, p. ej. "listing:12", "challenge-attempt:5"
+  operationId   String? // clave de idempotencia (su unicidad la garantiza economy_operation_keys)
+  createdAt     DateTime @default(now())
 
   team     FantasyTeam @relation(fields: [teamId], references: [id], onDelete: Cascade)
   transfer Transfer?   @relation(fields: [transferId], references: [id], onDelete: SetNull)
 
   @@index([teamId, createdAt])
+  @@index([operationId])
   @@map("transactions")
 }
 
@@ -358,12 +395,23 @@ model League {
   startGameweek Int      @default(1)
   ownerId       String?
   isSystem      Boolean  @default(false)
+  // Economía de liga (v2)
+  economyVersion    Int       @default(1)
+  marketTimezone    String    @default("Europe/London")
+  marketResetMinute Int? // minutos desde medianoche en marketTimezone; null = hora de creación de la liga
+  marketPityCounter Int       @default(0) // ciclos seguidos sin jugadores de rareza alta
+  economyStartedAt  DateTime?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   owner   User?          @relation("LeagueOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   members LeagueMember[]
   invites LeagueInvite[]
+  economyTeams     FantasyTeam[]           @relation("EconomyLeague")
+  marketCycles     MarketCycle[]
+  playerOwnerships LeaguePlayerOwnership[]
+  coachOwnerships  LeagueCoachOwnership[]
+  cooldowns        LeagueAssetCooldown[]
 
   @@index([type])
   @@map("leagues")
@@ -496,4 +544,345 @@ model UserAvatar {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_avatars")
+}
+
+// ───────────────────────────── Economía de liga (v2) ─────────────────────────────
+// Dinero en miles de £ (k£): 100000 = £100M. Todo movimiento queda en `transactions` con currency = "K".
+
+// Entrenadores reales (API oficial de la Premier League: cuerpo técnico de cada club)
+model Coach {
+  id          Int       @id @default(autoincrement())
+  externalId  Int?      @unique // officialId en la API oficial
+  optaId      String?   @unique // p. ej. "man51018" (foto oficial)
+  firstName   String
+  lastName    String
+  displayName String
+  clubId      Int?
+  nationality String?
+  birthDate   DateTime?
+  photoUrl    String?
+  marketValue Int       @default(0) // k£
+  rarity      String    @default("COMMON")
+  isActive    Boolean   @default(true) // false = ya no dirige un club de la temporada activa
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  club       Club?                  @relation(fields: [clubId], references: [id], onDelete: SetNull)
+  valuations CoachValuation[]
+  ownerships LeagueCoachOwnership[]
+  listings   MarketListing[]
+  lineups    Lineup[]
+
+  @@index([clubId])
+  @@map("coaches")
+}
+
+model PlayerValuation {
+  id            Int      @id @default(autoincrement())
+  playerId      Int
+  gameweekId    Int?
+  value         Int // k£
+  previousValue Int?
+  change        Int      @default(0)
+  variationBp   Int      @default(0) // variación en puntos básicos (100 = 1 %)
+  reason        String // INITIAL | PERFORMANCE | ADMIN | RECALIBRATION
+  factors       String   @default("{}") // JSON con los factores usados por la fórmula
+  createdAt     DateTime @default(now())
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, gameweekId, reason])
+  @@index([playerId, createdAt])
+  @@map("player_valuations")
+}
+
+model CoachValuation {
+  id            Int      @id @default(autoincrement())
+  coachId       Int
+  gameweekId    Int?
+  value         Int
+  previousValue Int?
+  change        Int      @default(0)
+  variationBp   Int      @default(0)
+  reason        String
+  factors       String   @default("{}")
+  createdAt     DateTime @default(now())
+
+  coach Coach @relation(fields: [coachId], references: [id], onDelete: Cascade)
+
+  @@unique([coachId, gameweekId, reason])
+  @@index([coachId, createdAt])
+  @@map("coach_valuations")
+}
+
+// Un mercado diario por liga: todos los miembros ven exactamente los mismos anuncios
+model MarketCycle {
+  id         Int      @id @default(autoincrement())
+  leagueId   Int
+  cycleDate  String // fecha local (YYYY-MM-DD) del inicio del ciclo en la zona horaria de la liga (informativa)
+  startsAt   DateTime // UTC
+  endsAt     DateTime // UTC
+  pityBefore Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  league   League          @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  listings MarketListing[]
+
+  @@unique([leagueId, startsAt]) // dos generaciones simultáneas del mismo ciclo: solo una prospera
+  @@index([leagueId, cycleDate])
+  @@map("market_cycles")
+}
+
+model MarketListing {
+  id           Int       @id @default(autoincrement())
+  cycleId      Int
+  leagueId     Int
+  assetType    String // PLAYER | COACH
+  playerId     Int?
+  coachId      Int?
+  rarity       String
+  listingPrice Int // k£: precio fijado al generar el mercado (no cambia durante el ciclo)
+  slot         Int
+  status       String    @default("AVAILABLE") // AVAILABLE | SOLD
+  buyerTeamId  Int?
+  soldAt       DateTime?
+  createdAt    DateTime  @default(now())
+
+  cycle  MarketCycle @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  player Player?     @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  coach  Coach?      @relation(fields: [coachId], references: [id], onDelete: Cascade)
+
+  @@unique([cycleId, playerId])
+  @@unique([cycleId, coachId])
+  @@index([leagueId, status])
+  @@map("market_listings")
+}
+
+// Propiedad por liga: un jugador solo puede pertenecer a un equipo dentro de la misma liga
+model LeaguePlayerOwnership {
+  id            Int      @id @default(autoincrement())
+  leagueId      Int
+  playerId      Int
+  teamId        Int
+  purchasePrice Int // k£
+  source        String // STARTER | MARKET
+  acquiredAt    DateTime @default(now())
+
+  league League      @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  player Player      @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  team   FantasyTeam @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, playerId])
+  @@unique([teamId, playerId])
+  @@map("league_player_ownerships")
+}
+
+model LeagueCoachOwnership {
+  id            Int      @id @default(autoincrement())
+  leagueId      Int
+  coachId       Int
+  teamId        Int
+  purchasePrice Int
+  acquiredAt    DateTime @default(now())
+
+  league League      @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  coach  Coach       @relation(fields: [coachId], references: [id], onDelete: Cascade)
+  team   FantasyTeam @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, coachId])
+  @@index([teamId])
+  @@map("league_coach_ownerships")
+}
+
+// Tras una venta, el jugador/entrenador no vuelve al mercado de esa liga hasta `availableAt`
+model LeagueAssetCooldown {
+  id          Int      @id @default(autoincrement())
+  leagueId    Int
+  assetType   String // PLAYER | COACH
+  assetId     Int
+  availableAt DateTime
+
+  league League @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+
+  @@unique([leagueId, assetType, assetId])
+  @@map("league_asset_cooldowns")
+}
+
+// Idempotencia de las operaciones económicas: una misma operación (compra de un anuncio, premio de un
+// desafío…) solo puede registrarse una vez. Tabla propia para no añadir restricciones únicas a `transactions`.
+model EconomyOperationKey {
+  key       String   @id
+  createdAt DateTime @default(now())
+
+  @@map("economy_operation_keys")
+}
+
+// Registro de auditoría del mercado (se conserva aunque se borre la liga)
+model MarketAuditLog {
+  id        Int      @id @default(autoincrement())
+  leagueId  Int?
+  cycleId   Int?
+  teamId    Int?
+  userId    String?
+  action    String // CYCLE_GENERATED | PURCHASE | PURCHASE_REJECTED | SALE | ECONOMY_JOINED | ECONOMY_LEFT | ECONOMY_RESET | LEAGUE_MIGRATED
+  details   String   @default("{}")
+  createdAt DateTime @default(now())
+
+  @@index([leagueId, createdAt])
+  @@index([teamId, createdAt])
+  @@map("market_audit_logs")
+}
+
+// ───────────────────────────── Cartas potenciadoras ─────────────────────────────
+
+model PowerUpCard {
+  id                Int      @id @default(autoincrement())
+  code              String   @unique
+  name              String
+  description       String
+  effect            String // DOUBLE_POINTS | WEAKEN (ampliable)
+  rarity            String // COMMON | RARE | EPIC | LEGENDARY
+  effectValue       Int // DOUBLE_POINTS: multiplicador en % (200 = x2) · WEAKEN: % de puntos que se restan
+  target            String // OWN_PLAYER | RIVAL_PLAYER
+  durationGameweeks Int      @default(1)
+  maxPerGameweek    Int      @default(1) // cuántas cartas de este efecto puede activar un equipo por jornada
+  isActive          Boolean  @default(true) // se puede activar
+  obtainable        Boolean  @default(true) // se puede conseguir como recompensa
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  inventory   TeamCard[]
+  activations CardActivation[]
+
+  @@map("powerup_cards")
+}
+
+// Inventario: cada fila es una carta de un solo uso
+model TeamCard {
+  id         Int       @id @default(autoincrement())
+  teamId     Int
+  cardId     Int
+  status     String    @default("AVAILABLE") // AVAILABLE | ACTIVE | USED
+  source     String // STREAK | CHALLENGE | ACHIEVEMENT | EVENT | ADMIN
+  sourceRef  String?   @unique // idempotencia de la concesión (p. ej. "streak:<user>:<fecha>:7")
+  acquiredAt DateTime  @default(now())
+  usedAt     DateTime?
+
+  team        FantasyTeam      @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  card        PowerUpCard      @relation(fields: [cardId], references: [id], onDelete: Restrict)
+  activations CardActivation[]
+
+  @@index([teamId, status])
+  @@map("team_cards")
+}
+
+model CardActivation {
+  id             Int       @id @default(autoincrement())
+  teamCardId     Int
+  teamId         Int
+  cardId         Int
+  gameweekId     Int
+  effect         String
+  effectValue    Int // copia del valor al activar: cambios posteriores del catálogo no afectan
+  targetPlayerId Int
+  targetTeamId   Int
+  status         String    @default("ACTIVE") // ACTIVE | CANCELLED | APPLIED
+  requestId      String    @unique // idempotencia frente a dobles envíos
+  pointsDelta    Int       @default(0)
+  createdAt      DateTime  @default(now())
+  cancelledAt    DateTime?
+  appliedAt      DateTime?
+
+  teamCard   TeamCard    @relation(fields: [teamCardId], references: [id], onDelete: Cascade)
+  card       PowerUpCard @relation(fields: [cardId], references: [id], onDelete: Restrict)
+  team       FantasyTeam @relation("CardOwnerTeam", fields: [teamId], references: [id], onDelete: Cascade)
+  targetTeam FantasyTeam @relation("CardTargetTeam", fields: [targetTeamId], references: [id], onDelete: Cascade)
+
+  @@index([gameweekId, status])
+  @@index([teamId, gameweekId])
+  @@index([targetTeamId, gameweekId])
+  @@map("card_activations")
+}
+
+model CardUsageLog {
+  id         Int      @id @default(autoincrement())
+  teamId     Int
+  teamCardId Int?
+  action     String // GRANTED | ACTIVATED | CANCELLED | APPLIED | REJECTED
+  details    String   @default("{}")
+  createdAt  DateTime @default(now())
+
+  @@index([teamId, createdAt])
+  @@map("card_usage_logs")
+}
+
+// ───────────────────────────── Desafíos diarios ─────────────────────────────
+
+model DailyChallenge {
+  id            Int      @id @default(autoincrement())
+  type          String // WORDLE (ampliable: PLAYER_TRIVIA, GUESS_THE_PLAYER…)
+  challengeDate String // YYYY-MM-DD en la zona horaria de los desafíos
+  timezone      String
+  secret        String // JSON solo servidor (p. ej. la palabra). Nunca se envía antes de terminar.
+  meta          String   @default("{}")
+  createdAt     DateTime @default(now())
+
+  attempts DailyChallengeAttempt[]
+
+  @@unique([type, challengeDate])
+  @@map("daily_challenges")
+}
+
+model DailyChallengeAttempt {
+  id            Int       @id @default(autoincrement())
+  challengeId   Int
+  userId        String
+  type          String
+  challengeDate String
+  attemptsUsed  Int       @default(0)
+  maxAttempts   Int
+  guesses       String    @default("[]") // JSON [{word, result:[...]}] evaluado por el servidor
+  completed     Boolean   @default(false)
+  won           Boolean   @default(false)
+  startedAt     DateTime  @default(now())
+  completedAt   DateTime?
+
+  challenge DailyChallenge        @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  user      User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reward    DailyChallengeReward?
+
+  @@unique([userId, challengeDate, type])
+  @@map("daily_challenge_attempts")
+}
+
+model DailyChallengeReward {
+  id          Int      @id @default(autoincrement())
+  attemptId   Int      @unique // una sola recompensa por desafío
+  userId      String
+  teamId      Int?
+  amount      Int // en la moneda indicada
+  currency    String // K | TENTHS
+  streakBonus Int      @default(0)
+  streakDays  Int      @default(0)
+  cardCode    String?
+  createdAt   DateTime @default(now())
+
+  attempt DailyChallengeAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  @@map("daily_challenge_rewards")
+}
+
+model DailyStreak {
+  id        Int      @id @default(autoincrement())
+  userId    String
+  type      String // DAILY_CHALLENGE
+  current   Int      @default(0)
+  best      Int      @default(0)
+  lastDate  String? // última fecha que cuenta para la racha
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type])
+  @@map("daily_streaks")
 }

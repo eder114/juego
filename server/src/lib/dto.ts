@@ -27,6 +27,8 @@ export const playerSelect = {
   chanceOfPlaying: true,
   news: true,
   isActive: true,
+  marketValue: true,
+  rarity: true,
   club: { select: clubLiteSelect },
 } satisfies Prisma.PlayerSelect;
 

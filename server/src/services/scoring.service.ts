@@ -11,6 +11,9 @@ import { invalidateRankings } from './ranking.service';
 import { notifyMany } from './notification.service';
 import { evaluateGameweekAchievements, unlock } from './achievement.service';
 import { updatePricesForGameweek } from './price.service';
+import { applyCardModifiers } from '../domain/economy';
+import { cardModifiersForGameweek, finalizeCardsForGameweek } from './card.service';
+import { coachPointsByClub, updateValuationsForGameweek } from './valuation.service';
 
 export async function loadRules(): Promise<RuleLike[]> {
   return prisma.scoringRule.findMany();
@@ -71,10 +74,17 @@ export async function processGameweek(gameweekId: number, opts: { final: boolean
   });
   const statMap = new Map(stats.map((s) => [s.playerId, { points: s._sum.points ?? 0, minutes: s._sum.minutes ?? 0 }]));
 
+  if (locks.anyLocked || opts.final) await freezeCoaches(gameweekId, locks);
+
   const lineups = await prisma.lineup.findMany({
     where: { gameweekId },
-    include: { players: { include: { player: { select: { position: true, clubId: true } } } }, team: { select: { userId: true } } },
+    include: { players: { include: { player: { select: { position: true, clubId: true } } } }, team: { select: { userId: true } }, coach: { select: { clubId: true } } },
   });
+
+  // Modificadores: cartas activas de la jornada y puntos de entrenador (resultados reales terminados)
+  const { byTeam: cardMods } = await cardModifiersForGameweek(gameweekId);
+  const coachPoints = await coachPointsByClub(gameweekId, settings);
+  const cardDeltas = new Map<string, number>();
 
   const totalsByLineup = new Map<number, number>();
   for (const lineup of lineups) {
@@ -94,17 +104,31 @@ export async function processGameweek(gameweekId: number, opts: { final: boolean
       viceCaptainEnabled: settings.vice_captain_enabled,
       autoSubsEnabled: settings.auto_subs_enabled,
     });
-    totalsByLineup.set(lineup.id, result.total);
+    // Orden: puntos base → cartas → capitán (applyCardModifiers documenta la precedencia)
+    const mods = cardMods.get(lineup.teamId);
+    let cardPoints = 0;
+    const deltas = new Map<number, number>();
+    for (const e of result.entries) {
+      const m = mods?.get(e.playerId);
+      if (!m?.length) continue;
+      const applied = applyCardModifiers(e.points, e.multiplier, m, settings.card_captain_stacking as 'MAX' | 'STACK');
+      deltas.set(e.playerId, applied.delta);
+      cardDeltas.set(`${lineup.teamId}:${e.playerId}`, applied.delta);
+      cardPoints += applied.delta;
+    }
+    const coach = lineup.coach?.clubId ? (coachPoints.get(lineup.coach.clubId) ?? 0) : 0;
+    const total = result.total + cardPoints + coach;
+    totalsByLineup.set(lineup.id, total);
     await prisma.$transaction([
       ...result.entries.map((e) =>
         prisma.lineupPlayer.update({
           where: { lineupId_playerId: { lineupId: lineup.id, playerId: e.playerId } },
-          data: { points: e.points, multiplier: e.multiplier, autoSubIn: e.autoSubIn, autoSubOut: e.autoSubOut },
+          data: { points: e.points, multiplier: e.multiplier, autoSubIn: e.autoSubIn, autoSubOut: e.autoSubOut, cardDelta: deltas.get(e.playerId) ?? 0 },
         }),
       ),
       prisma.lineup.update({
         where: { id: lineup.id },
-        data: { points: result.total, benchPoints: result.benchPoints, isFinal: opts.final },
+        data: { points: total, benchPoints: result.benchPoints, cardPoints, coachPoints: coach, isFinal: opts.final },
       }),
     ]);
   }
@@ -131,10 +155,37 @@ export async function processGameweek(gameweekId: number, opts: { final: boolean
       await evaluateGameweekAchievements(gameweekId, settings.captain_multiplier);
       await evaluateLeagueLeaders();
     }
+    await finalizeCardsForGameweek(gameweekId, cardDeltas);
     if (settings.auto_price_update && !locks.gameweek.pricesUpdated) await updatePricesForGameweek(gameweekId);
+    // Valores de la economía de liga (independientes de los precios clásicos)
+    await updateValuationsForGameweek(gameweekId);
   }
 
   return { gameweekId, lineups: lineups.length, final: opts.final };
+}
+
+/**
+ * Congela el entrenador de cada alineación al empezar la jornada: cuenta el entrenador que el equipo tenía
+ * antes del primer partido de su club en la jornada (igual que los jugadores fichados con la jornada en marcha).
+ */
+async function freezeCoaches(gameweekId: number, locks: NonNullable<Awaited<ReturnType<typeof getGameweekLocks>>>) {
+  const pending = await prisma.lineup.findMany({ where: { gameweekId, coachId: null, isFinal: false }, select: { id: true, teamId: true } });
+  if (!pending.length) return;
+  const owned = await prisma.leagueCoachOwnership.findMany({
+    where: { teamId: { in: pending.map((l) => l.teamId) } },
+    include: { coach: { select: { clubId: true } } },
+    orderBy: { acquiredAt: 'asc' },
+  });
+  for (const l of pending) {
+    const eligible = owned.find((o) => {
+      if (o.teamId !== l.teamId || !o.coach.clubId) return false;
+      const kickoffs = (locks.clubFixtures.get(o.coach.clubId) ?? []).map((f) => f.kickoff).filter((k): k is Date => !!k);
+      const first = kickoffs.sort((a, b) => a.getTime() - b.getTime())[0];
+      const reference = locks.lockMode === 'DEADLINE' ? locks.gameweek.deadline : (first ?? locks.gameweek.deadline);
+      return o.acquiredAt < reference;
+    });
+    if (eligible) await prisma.lineup.update({ where: { id: l.id }, data: { coachId: eligible.coachId } });
+  }
 }
 
 async function evaluateLeagueLeaders() {

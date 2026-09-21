@@ -12,6 +12,10 @@ import { hashPassword } from './auth.service';
 import { invalidateSettings } from './settings.service';
 import { seedDemo } from './demo.service';
 
+import { ensureCardCatalog } from './card.service';
+import { ensurePlayerValuations } from './valuation.service';
+import { syncCoaches } from './coach.service';
+
 export const bootstrapState = { seeding: false, error: null as string | null };
 const BOOTSTRAP_MARKER = 'bootstrap_completed';
 
@@ -142,6 +146,7 @@ export async function bootstrapOnBoot() {
   const completed = !!marker || (await prisma.news.count()) > 0;
   if (completed) {
     await ensureAdminAndGlobalLeague();
+    await ensureEconomyReady();
     return;
   }
   bootstrapState.seeding = true;
@@ -156,4 +161,21 @@ export async function bootstrapOnBoot() {
     bootstrapState.seeding = false;
   }
   if (isProd && bootstrapState.error) console.error('La app arranca, pero sin datos completos. Revisa los logs.');
+  if (!bootstrapState.error) await ensureEconomyReady();
+}
+
+/**
+ * Economía de liga: catálogo de cartas, valores iniciales (desde el precio real de FPL) y entrenadores reales.
+ * La primera vez, las jornadas ya cerradas se marcan como valoradas: su rendimiento ya está reflejado en el
+ * precio oficial del que parte el valor inicial (así un recálculo de temporada no las aplica dos veces).
+ */
+export async function ensureEconomyReady() {
+  await ensureCardCatalog();
+  const firstTime = (await prisma.playerValuation.count()) === 0;
+  await ensurePlayerValuations();
+  if (firstTime) await prisma.gameweek.updateMany({ where: { isProcessed: true }, data: { valuationsUpdated: true } });
+  if ((await prisma.coach.count()) === 0) {
+    // Descarga de red: no bloquea el arranque; si falla se puede repetir desde Administración → Economía
+    syncCoaches((m) => console.log(`[coaches] ${m}`)).catch((err) => console.warn('[coaches] No se pudieron descargar los entrenadores:', (err as Error).message));
+  }
 }

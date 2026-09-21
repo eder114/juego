@@ -60,7 +60,7 @@ export default function Stats() {
   const pitch = useMemo(() => {
     if (!totw.data) return null;
     const entries = new Map<number, LineupEntry>(
-      totw.data.players.map((p, i) => [p.id, { player: p, role: 'STARTER', order: i, inSquad: true, locked: false, fixtures: [], minutes: 90, points: p.gameweekPoints, multiplier: 1, autoSubIn: false, autoSubOut: false }]),
+      totw.data.players.map((p, i) => [p.id, { player: p, role: 'STARTER', order: i, inSquad: true, locked: false, fixtures: [], minutes: 90, points: p.gameweekPoints, multiplier: 1, autoSubIn: false, autoSubOut: false, cards: [], cardDelta: 0 }]),
     );
     return { entries, state: { formation: totw.data.formation, starters: totw.data.players.map((p) => p.id), bench: [], captainId: totw.data.playerOfTheWeek.id, viceCaptainId: null } };
   }, [totw.data]);

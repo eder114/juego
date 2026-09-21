@@ -7,6 +7,8 @@ import type { LeagueType } from '../domain/constants';
 import { computeStandings } from './ranking.service';
 import { notify } from './notification.service';
 import { evaluateLeagueAchievements } from './achievement.service';
+import { getSettings } from './settings.service';
+import { joinEconomy, leaveEconomy, leagueEconomySummary } from './market.service';
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -36,7 +38,7 @@ async function getMembership(leagueId: number, userId: string) {
   return prisma.leagueMember.findUnique({ where: { leagueId_userId: { leagueId, userId } } });
 }
 
-async function requireLeagueAdmin(leagueId: number, userId: string, isSiteAdmin = false) {
+export async function requireLeagueAdmin(leagueId: number, userId: string, isSiteAdmin = false) {
   const league = await prisma.league.findUnique({ where: { id: leagueId } });
   if (!league) throw notFound('Liga no encontrada');
   if (isSiteAdmin) return league;
@@ -45,8 +47,9 @@ async function requireLeagueAdmin(leagueId: number, userId: string, isSiteAdmin 
   return league;
 }
 
-function serializeLeague(l: { id: number; name: string; description: string | null; type: string; maxMembers: number; startGameweek: number; createdAt: Date; passwordHash: string | null; isSystem: boolean; owner?: { id: string; managerName: string; avatarUrl: string | null } | null }, memberCount: number) {
+function serializeLeague(l: { id: number; name: string; description: string | null; type: string; maxMembers: number; startGameweek: number; createdAt: Date; passwordHash: string | null; isSystem: boolean; economyVersion: number; owner?: { id: string; managerName: string; avatarUrl: string | null } | null }, memberCount: number) {
   return {
+    economyVersion: l.economyVersion,
     id: l.id,
     name: l.name,
     description: l.description,
@@ -116,8 +119,12 @@ export async function createLeague(userId: string, input: CreateLeagueInput) {
   await requireTeam(userId);
   const owned = await prisma.league.count({ where: { ownerId: userId } });
   if (owned >= 20) throw badRequest('Has alcanzado el máximo de 20 ligas creadas');
+  const settings = await getSettings();
   const league = await prisma.league.create({
     data: {
+      economyVersion: settings.economy_v2_new_leagues ? 2 : 1,
+      marketTimezone: settings.market_default_timezone,
+      economyStartedAt: settings.economy_v2_new_leagues ? new Date() : null,
       name: input.name,
       description: input.description ?? null,
       type: input.type,
@@ -130,7 +137,33 @@ export async function createLeague(userId: string, input: CreateLeagueInput) {
     },
   });
   await evaluateLeagueAchievements(userId);
-  return league;
+  const economy = await autoJoinEconomy(userId, league.id);
+  return { ...league, economy };
+}
+
+/**
+ * Al entrar en una liga con economía de liga, un equipo que aún no juega ninguna partida recibe
+ * automáticamente su equipo inicial. Los equipos del sistema clásico con plantilla deben confirmarlo
+ * expresamente desde la página de la liga (se sustituye su plantilla).
+ */
+async function autoJoinEconomy(userId: string, leagueId: number) {
+  const [league, team] = await Promise.all([
+    prisma.league.findUnique({ where: { id: leagueId }, select: { economyVersion: true } }),
+    prisma.fantasyTeam.findUnique({ where: { userId }, select: { economyVersion: true, economyLeagueId: true, _count: { select: { players: true } } } }),
+  ]);
+  if (league?.economyVersion !== 2 || !team || team.economyLeagueId) return { joined: false };
+  if (team.economyVersion === 1 && team._count.players > 0) return { joined: false, requiresConfirmation: true };
+  try {
+    return await joinEconomy(userId, leagueId);
+  } catch (err) {
+    return { joined: false, error: err instanceof Error ? err.message : 'No se pudo preparar tu equipo inicial' };
+  }
+}
+
+/** Si el equipo jugaba la economía de esta liga, se liberan sus jugadores antes de salir. */
+async function releaseEconomyIfBound(userId: string, leagueId: number, reason: string, actor?: string) {
+  const team = await prisma.fantasyTeam.findUnique({ where: { userId }, select: { id: true, economyLeagueId: true } });
+  if (team?.economyLeagueId === leagueId) await leaveEconomy(team.id, reason, actor);
 }
 
 async function addMember(leagueId: number, userId: string) {
@@ -141,6 +174,7 @@ async function addMember(leagueId: number, userId: string) {
   await prisma.leagueMember.create({ data: { leagueId, userId } });
   await prisma.leagueInvite.updateMany({ where: { leagueId, receiverId: userId, status: 'PENDING' }, data: { status: 'ACCEPTED' } });
   const user = await prisma.user.findUnique({ where: { id: userId }, select: { managerName: true } });
+  await autoJoinEconomy(userId, leagueId);
   if (league.ownerId && league.ownerId !== userId) {
     await notify({
       userId: league.ownerId,
@@ -182,6 +216,7 @@ export async function leaveLeague(userId: string, leagueId: number) {
   if (league.type === 'GLOBAL') throw badRequest('No puedes abandonar la liga global');
   const membership = await getMembership(leagueId, userId);
   if (!membership) throw notFound('No perteneces a esta liga');
+  await releaseEconomyIfBound(userId, leagueId, 'abandonó la liga');
 
   await prisma.$transaction(async (tx) => {
     await tx.leagueMember.delete({ where: { id: membership.id } });
@@ -253,6 +288,7 @@ export async function getLeagueDetail(userId: string, leagueId: number, isSiteAd
     history,
     invites,
     canInvite: !!membership && !isGlobal && (league.type !== 'INVITE' || membership.role === 'ADMIN'),
+    economy: await leagueEconomySummary(leagueId, userId),
   };
 }
 
@@ -277,6 +313,8 @@ export async function updateLeague(userId: string, leagueId: number, patch: { na
 export async function deleteLeague(userId: string, leagueId: number, isSiteAdmin = false) {
   const league = await requireLeagueAdmin(leagueId, userId, isSiteAdmin);
   if (league.isSystem) throw badRequest('La liga global del sistema no se puede eliminar');
+  const bound = await prisma.fantasyTeam.findMany({ where: { economyLeagueId: leagueId }, select: { id: true } });
+  for (const t of bound) await leaveEconomy(t.id, 'liga eliminada', userId);
   await prisma.league.delete({ where: { id: leagueId } });
   return { deleted: true };
 }
@@ -287,6 +325,7 @@ export async function removeMember(userId: string, leagueId: number, memberUserI
   if (memberUserId === userId) throw badRequest('Para salir de la liga usa "Abandonar liga"');
   const m = await getMembership(leagueId, memberUserId);
   if (!m) throw notFound('Ese mánager no pertenece a la liga');
+  await releaseEconomyIfBound(memberUserId, leagueId, 'retirado por el administrador de la liga', userId);
   await prisma.leagueMember.delete({ where: { id: m.id } });
   await notify({ userId: memberUserId, type: 'LEAGUE', title: `Has sido retirado de ${league.name}`, message: 'El administrador de la liga te ha retirado.' });
   return { removed: true };

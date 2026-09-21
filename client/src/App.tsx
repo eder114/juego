@@ -16,6 +16,9 @@ const Market = lazy(() => import('./pages/Market'));
 const PlayerDetail = lazy(() => import('./pages/PlayerDetail'));
 const Compare = lazy(() => import('./pages/Compare'));
 const Team = lazy(() => import('./pages/Team'));
+const Cards = lazy(() => import('./pages/Cards'));
+const Challenges = lazy(() => import('./pages/Challenges'));
+const Economy = lazy(() => import('./pages/Economy'));
 const Lineup = lazy(() => import('./pages/Lineup'));
 const Leagues = lazy(() => import('./pages/Leagues'));
 const LeagueDetail = lazy(() => import('./pages/LeagueDetail'));
@@ -41,6 +44,7 @@ const AdminScoring = lazy(() => import('./pages/admin/AdminScoring'));
 const AdminLeagues = lazy(() => import('./pages/admin/AdminLeagues'));
 const AdminNews = lazy(() => import('./pages/admin/AdminNews'));
 const AdminSettings = lazy(() => import('./pages/admin/AdminSettings'));
+const AdminEconomy = lazy(() => import('./pages/admin/AdminEconomy'));
 const AdminImport = lazy(() => import('./pages/admin/AdminImport'));
 
 function FullScreenLoader() {
@@ -81,6 +85,9 @@ export default function App() {
         <Route element={<RequireAuth><AppLayout /></RequireAuth>}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/team" element={<Team />} />
+          <Route path="/cards" element={<Cards />} />
+          <Route path="/challenges" element={<Challenges />} />
+          <Route path="/economy" element={<Economy />} />
           <Route path="/lineup" element={<Lineup />} />
           <Route path="/market" element={<Market />} />
           <Route path="/players/:id" element={<PlayerDetail />} />
@@ -108,6 +115,7 @@ export default function App() {
             <Route path="scoring" element={<AdminScoring />} />
             <Route path="leagues" element={<AdminLeagues />} />
             <Route path="news" element={<AdminNews />} />
+            <Route path="economy" element={<AdminEconomy />} />
             <Route path="settings" element={<AdminSettings />} />
             <Route path="import" element={<AdminImport />} />
           </Route>

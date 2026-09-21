@@ -5,7 +5,9 @@ import {
   BarChart3,
   Bell,
   CalendarDays,
+  Flame,
   House,
+  Layers,
   ListOrdered,
   LogOut,
   Menu,
@@ -23,7 +25,7 @@ import {
 import clsx from 'clsx';
 import { useAuth } from '../../context/AuthContext';
 import { api } from '../../lib/api';
-import { initials, money, relativeTime } from '../../lib/format';
+import { initials, money, moneyK, relativeTime } from '../../lib/format';
 import { usePublicConfig } from '../../hooks/usePublicConfig';
 import type { AppNotification } from '../../types';
 import { LoadingBlock } from '../ui';
@@ -34,6 +36,8 @@ const NAV = [
   { to: '/team', label: 'Mi equipo', icon: Shirt },
   { to: '/lineup', label: 'Alineación', icon: Users },
   { to: '/market', label: 'Mercado', icon: ShoppingBag },
+  { to: '/challenges', label: 'Desafíos', icon: Flame },
+  { to: '/cards', label: 'Cartas', icon: Layers },
   { to: '/leagues', label: 'Ligas', icon: Trophy },
   { to: '/rankings', label: 'Clasificación', icon: ListOrdered },
   { to: '/fixtures', label: 'Calendario', icon: CalendarDays },
@@ -41,7 +45,7 @@ const NAV = [
   { to: '/clubs', label: 'Clubes', icon: Shield },
   { to: '/news', label: 'Noticias', icon: Newspaper },
 ];
-const MOBILE_NAV = [NAV[0], NAV[2], NAV[3], NAV[4]];
+const MOBILE_NAV = ['/dashboard', '/lineup', '/market', '/leagues'].map((to) => NAV.find((n) => n.to === to)!);
 
 export function Logo({ className }: { className?: string }) {
   return (
@@ -218,9 +222,13 @@ export default function AppLayout() {
           </p>
           <div className="flex items-center gap-2 sm:gap-3">
             {user?.team && (
-              <Link to="/team" title="Presupuesto disponible" className="hidden h-10 items-center gap-2.5 rounded-lg bg-[#101d25]/90 px-4 text-sm shadow-[0_6px_18px_-8px_rgb(0_0_0/0.6)] transition hover:bg-[#15272f] sm:flex">
+              <Link
+                to={user.team.economyVersion === 2 ? '/economy' : '/team'}
+                title={user.team.economyLeague ? `Presupuesto en «${user.team.economyLeague.name}»` : 'Presupuesto disponible'}
+                className="hidden h-10 items-center gap-2.5 rounded-lg bg-[#101d25]/90 px-4 text-sm shadow-[0_6px_18px_-8px_rgb(0_0_0/0.6)] transition hover:bg-[#15272f] sm:flex"
+              >
                 <Wallet aria-hidden className="size-4 text-white/80" />
-                <span className="font-bold tabular-nums text-white">{money(user.team.budget)}</span>
+                <span className="font-bold tabular-nums text-white">{user.team.economyVersion === 2 ? moneyK(user.team.wallet) : money(user.team.budget)}</span>
               </Link>
             )}
             <NotificationBell />

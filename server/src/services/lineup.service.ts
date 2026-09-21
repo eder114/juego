@@ -14,6 +14,9 @@ import { BLOCKING_STATUSES, type PlayerStatus, type Position } from '../domain/c
 import { getSettings } from './settings.service';
 import { getEditableGameweek, getGameweekContext, getGameweekLocks } from './gameweek.service';
 import { aggFor, getPlayerAggregates, toPlayerDTO } from './player-stats.service';
+import { applyCardModifiers } from '../domain/economy';
+import { cardModifiersForGameweek } from './card.service';
+import { coachPointsByClub } from './valuation.service';
 
 async function loadSquad(teamId: number) {
   const [entries, { map }] = await Promise.all([
@@ -126,8 +129,9 @@ async function buildLineupView(teamId: number, gameweekId: number, isOwner: bool
   const { entries, members, aggMap } = await loadSquad(teamId);
   const row = await prisma.lineup.findUnique({
     where: { teamId_gameweekId: { teamId, gameweekId } },
-    include: { players: { include: { player: { select: playerSelect } } } },
+    include: { players: { include: { player: { select: playerSelect } } }, coach: { select: { id: true, displayName: true, photoUrl: true, clubId: true, club: { select: { shortName: true, name: true, crestUrl: true } } } } },
   });
+  const cardMods = (await cardModifiersForGameweek(gameweekId)).byTeam.get(teamId);
 
   let draft: LineupDraft | null;
   if (row) {
@@ -180,6 +184,16 @@ async function buildLineupView(teamId: number, gameweekId: number, isOwner: bool
     });
   }
   const storedById = new Map((row?.players ?? []).map((p) => [p.playerId, p]));
+  // Efecto de las cartas en vivo (misma función que la puntuación definitiva)
+  const liveCardDelta = new Map<number, number>();
+  if (scoring && cardMods) {
+    for (const e of scoring.entries) {
+      const m = cardMods.get(e.playerId);
+      if (m?.length) liveCardDelta.set(e.playerId, applyCardModifiers(e.points, e.multiplier, m, settings.card_captain_stacking as 'MAX' | 'STACK').delta);
+    }
+  }
+  const liveCardPoints = [...liveCardDelta.values()].reduce((a, b) => a + b, 0);
+  const liveCoachPoints = row?.coach?.clubId && !row.isFinal ? ((await coachPointsByClub(gameweekId, settings)).get(row.coach.clubId) ?? 0) : 0;
 
   const players = [...playerMap.values()].map((p) => {
     const fixtures = (locks.clubFixtures.get(p.clubId) ?? []).map((f) => {
@@ -210,6 +224,8 @@ async function buildLineupView(teamId: number, gameweekId: number, isOwner: bool
       multiplier: row?.isFinal ? (stored?.multiplier ?? 0) : (scored?.multiplier ?? (roleOf(p.id) === 'STARTER' ? 1 : 0)),
       autoSubIn: row?.isFinal ? !!stored?.autoSubIn : !!scored?.autoSubIn,
       autoSubOut: row?.isFinal ? !!stored?.autoSubOut : !!scored?.autoSubOut,
+      cards: (cardMods?.get(p.id) ?? []).map((m) => m.effect),
+      cardDelta: row?.isFinal ? (stored?.cardDelta ?? 0) : (liveCardDelta.get(p.id) ?? 0),
     };
   });
 
@@ -246,7 +262,11 @@ async function buildLineupView(teamId: number, gameweekId: number, isOwner: bool
     captainId: draft?.captainId ?? null,
     viceCaptainId: draft?.viceCaptainId ?? null,
     activeCaptainId: scoring?.activeCaptainId ?? null,
-    points: row?.isFinal ? row.points : (scoring?.total ?? row?.points ?? 0),
+    points: row?.isFinal ? row.points : scoring ? scoring.total + liveCardPoints + liveCoachPoints : (row?.points ?? 0),
+    cardPoints: row?.isFinal ? row.cardPoints : liveCardPoints,
+    coach: row?.coach
+      ? { id: row.coach.id, displayName: row.coach.displayName, photoUrl: row.coach.photoUrl, club: row.coach.club, points: row.isFinal ? row.coachPoints : liveCoachPoints }
+      : null,
     benchPoints: row?.isFinal ? row.benchPoints : (scoring?.benchPoints ?? 0),
     players,
     validation,

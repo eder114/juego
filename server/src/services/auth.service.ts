@@ -27,7 +27,7 @@ export async function getMe(userId: string) {
       avatarUrl: true,
       createdAt: true,
       favoriteClub: { select: clubLiteSelect },
-      team: { select: { id: true, name: true, crest: true, budget: true, totalPoints: true, createdAt: true } },
+      team: { select: { id: true, name: true, crest: true, budget: true, totalPoints: true, createdAt: true, economyVersion: true, wallet: true, economyLeague: { select: { id: true, name: true } } } },
     },
   });
   if (!user) throw notFound('Usuario no encontrado');

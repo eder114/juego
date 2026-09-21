@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { CircleDollarSign, CreditCard, Menu as ListIcon, Target, TrendingUp } from 'lucide-react';
 import { api } from '../lib/api';
-import { money } from '../lib/format';
+import { money, moneyK } from '../lib/format';
 import { useAuth } from '../context/AuthContext';
 import { StatCard } from '../components/ui';
 import { MovementIndicator } from '../components/sport';
@@ -37,6 +37,7 @@ export default function Dashboard() {
     );
 
   const last = data.history.at(-1);
+  const fmtMoney = data.economyVersion === 2 ? moneyK : money;
   return (
     <div className="space-y-5 sm:space-y-7">
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,32rem)]">
@@ -64,11 +65,11 @@ export default function Dashboard() {
             </span>
           }
         />
-        <StatCard variant="outline" label="Valor del equipo" value={money(data.teamValue)} icon={<CreditCard />} sub="Precio actual de la plantilla" />
+        <StatCard variant="outline" label="Valor del equipo" value={fmtMoney(data.teamValue)} icon={<CreditCard />} sub={data.economyLeague ? `Liga «${data.economyLeague.name}»` : 'Precio actual de la plantilla'} />
         <StatCard
           variant="outline"
           label="Presupuesto"
-          value={money(data.budget)}
+          value={fmtMoney(data.budget)}
           icon={<CircleDollarSign />}
           className="max-md:col-span-2"
           sub={

@@ -12,6 +12,7 @@ import { Badge, Button, Card, ConfirmModal, EmptyState, ErrorState, Field, Input
 import { StandingsTable } from '../components/StandingsTable';
 import { CHART_COLORS, tooltipStyle } from '../components/charts';
 import { LEAGUE_TONE } from './Leagues';
+import { LeagueEconomyPanel, type LeagueEconomySummary } from '../components/LeagueEconomyPanel';
 
 interface LeagueDetailData {
   id: number;
@@ -35,6 +36,8 @@ interface LeagueDetailData {
   history: Record<string, number>[];
   invites: { id: number; receiver: { managerName: string } }[];
   canInvite: boolean;
+  economyVersion: number;
+  economy: LeagueEconomySummary | null;
 }
 
 export default function LeagueDetail() {
@@ -132,6 +135,8 @@ export default function LeagueDetail() {
           </>
         }
       />
+
+      {league.economy && <LeagueEconomyPanel leagueId={league.id} economy={league.economy} isMember={league.isMember} canManage={isAdmin || user?.role === 'ADMIN'} />}
 
       {league.code && league.type !== 'GLOBAL' && (
         <Card className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
@@ -267,7 +272,11 @@ export default function LeagueDetail() {
 
       <InviteModal open={inviteOpen} onClose={() => setInviteOpen(false)} leagueId={league.id} pending={league.invites} />
       {settingsOpen && <SettingsModal league={league} onClose={() => setSettingsOpen(false)} onDelete={() => { setSettingsOpen(false); setConfirm('delete'); }} />}
-      <ConfirmModal open={confirm === 'leave'} onClose={() => setConfirm(null)} title="Abandonar liga" danger confirmLabel="Salir de la liga" loading={leave.isPending} onConfirm={() => leave.mutate()} message="Dejarás de aparecer en la clasificación. Podrás volver a unirte con el código si hay plazas." />
+      <ConfirmModal open={confirm === 'leave'} onClose={() => setConfirm(null)} title="Abandonar liga" danger confirmLabel="Salir de la liga" loading={leave.isPending} onConfirm={() => leave.mutate()} message={
+          league.economy?.myStatus === 'PLAYING'
+            ? 'Juegas la economía de esta liga: al salir, tus jugadores y tu presupuesto de esta partida se liberan (queda registrado en el historial). Dejarás de aparecer en la clasificación.'
+            : 'Dejarás de aparecer en la clasificación. Podrás volver a unirte con el código si hay plazas.'
+        } />
       <ConfirmModal open={confirm === 'delete'} onClose={() => setConfirm(null)} title="Eliminar liga" danger confirmLabel="Eliminar definitivamente" loading={remove.isPending} onConfirm={() => remove.mutate()} message="La liga y su clasificación se eliminarán para todos los participantes. Los equipos y puntos de cada mánager no se ven afectados." />
       <ConfirmModal open={!!removing} onClose={() => setRemoving(null)} title="Retirar mánager" danger confirmLabel="Retirar" loading={kick.isPending} onConfirm={() => removing && kick.mutate(removing.userId)} message={removing && `¿Retirar a ${removing.managerName} (${removing.teamName}) de la liga?`} />
     </div>

@@ -21,6 +21,7 @@ import { invalidatePlayerAggregates } from './player-stats.service';
 import { notifyOwners } from './notification.service';
 import { syncGameweekStatuses } from './gameweek.service';
 import { loadRules, recalculateStatistics } from './scoring.service';
+import { ensurePlayerValuations } from './valuation.service';
 
 async function chunked<T>(items: T[], size: number, fn: (chunk: T[]) => Promise<unknown>) {
   for (let i = 0; i < items.length; i += size) await fn(items.slice(i, i + size));
@@ -395,6 +396,8 @@ export async function syncFromProvider() {
       });
       const ds = await fetchFplDataset({ history: false, liveGameweeks: recentGws.map((g) => g.id), clubsMeta });
       const summary = await importDataset(ds, 'sync');
+      // Jugadores nuevos en la Premier: reciben su valor inicial en la economía de liga
+      await ensurePlayerValuations();
       lastSync = { at: new Date(), ok: true, message: `${summary.playersUpdated} jugadores, ${summary.fixtures} partidos, ${summary.stats} estadísticas` };
       return summary;
     } catch (err) {

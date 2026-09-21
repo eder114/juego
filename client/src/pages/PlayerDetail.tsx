@@ -1,11 +1,14 @@
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, CalendarDays, GitCompareArrows, Heart, HeartPulse, History, Minus, Plus, TrendingUp } from 'lucide-react';
+import { ArrowLeft, CalendarDays, GitCompareArrows, Heart, HeartPulse, History, Minus, Plus, ShoppingBag, TrendingUp } from 'lucide-react';
 import clsx from 'clsx';
 import { api } from '../lib/api';
-import { dateShort, dateTime, money, POSITION_LABEL } from '../lib/format';
+import { dateShort, dateTime, money, moneyK, POSITION_LABEL } from '../lib/format';
 import type { ClubLite, Player } from '../types';
 import { useTransferActions } from '../hooks/useTransferActions';
+import { useLeagueEconomy } from '../hooks/useLeagueEconomy';
+import { useAuth } from '../context/AuthContext';
+import { RarityBadge } from '../components/economy';
 import { Badge, Button, Card, CardHeader, EmptyState, ErrorState, LoadingBlock } from '../components/ui';
 import { ClubCrest, DifficultyPill, PlayerPhoto, PositionBadge, PriceChange, StatusBadge } from '../components/sport';
 import { PointsHistoryChart, PriceChart } from '../components/charts';
@@ -42,6 +45,15 @@ export default function PlayerDetail() {
   const navigate = useNavigate();
   const { data: p, isLoading, error, refetch } = useQuery({ queryKey: ['player', id], queryFn: () => api.get<PlayerDetailData>(`/players/${id}`) });
   const { buy, sell, favorite } = useTransferActions();
+  const { sellPlayer } = useLeagueEconomy();
+  const { user } = useAuth();
+  // Economía de liga: el jugador se ficha en el mercado diario compartido y se valora en miles de £
+  const v2 = user?.team?.economyVersion === 2;
+  const valuations = useQuery({
+    queryKey: ['player', id, 'valuations'],
+    queryFn: () => api.get<{ value: number; createdAt: string; reason: string }[]>(`/players/${id}/valuations`),
+    enabled: v2,
+  });
 
   if (error) return <ErrorState error={error} onRetry={refetch} />;
   if (isLoading || !p) return <LoadingBlock />;
@@ -92,7 +104,14 @@ export default function PlayerDetail() {
             {p.news && <p className="mt-2 text-sm text-amber-300">{p.news}</p>}
           </div>
           <div className="flex flex-col items-center gap-3 sm:items-end">
-            <div className="text-center sm:text-right">
+            {v2 && (
+              <div className="text-center sm:text-right">
+                <p className="label">Valor en la liga</p>
+                <p className="stat-number text-5xl text-pitch-300">{moneyK(p.marketValue)}</p>
+                <RarityBadge rarity={p.rarity} className="mt-1" />
+              </div>
+            )}
+            <div className={clsx('text-center sm:text-right', v2 && 'hidden')}>
               <p className="label">Precio actual</p>
               <p className="stat-number text-5xl text-pitch-300">{money(p.price)}</p>
               <div className="mt-1 flex items-center justify-center gap-3 sm:justify-end">
@@ -106,7 +125,17 @@ export default function PlayerDetail() {
               {p.purchasePrice !== null && <p className="mt-1 text-xs text-slate-400">Lo compraste por {money(p.purchasePrice)}</p>}
             </div>
             <div className="flex gap-2">
-              {p.inSquad ? (
+              {v2 ? (
+                p.inSquad ? (
+                  <Button variant="danger" onClick={() => sellPlayer.mutate(p)} loading={sellPlayer.isPending} icon={<Minus className="size-4" />}>
+                    Vender
+                  </Button>
+                ) : (
+                  <Link to="/market">
+                    <Button variant="secondary" icon={<ShoppingBag className="size-4" />}>Mercado de la liga</Button>
+                  </Link>
+                )
+              ) : p.inSquad ? (
                 <Button variant="danger" onClick={() => sell.mutate(p)} loading={sell.isPending} icon={<Minus className="size-4" />}>
                   Vender
                 </Button>
@@ -142,10 +171,26 @@ export default function PlayerDetail() {
           <CardHeader title="Puntos por jornada" icon={<TrendingUp className="size-5" />} />
           <div className="p-3 sm:p-5">{p.pointsHistory.length ? <PointsHistoryChart data={p.pointsHistory} /> : <EmptyState title="Sin jornadas disputadas" />}</div>
         </Card>
-        <Card>
-          <CardHeader title="Evolución de precio" icon={<TrendingUp className="size-5" />} />
-          <div className="p-3 sm:p-5">{p.priceHistory.length ? <PriceChart data={p.priceHistory} /> : <EmptyState title="Sin historial" />}</div>
-        </Card>
+        {v2 ? (
+          <Card>
+            <CardHeader title="Evolución del valor" subtitle="Economía de liga: se actualiza tras cada jornada" icon={<TrendingUp className="size-5" />} />
+            <div className="p-3 sm:p-5">
+              {valuations.data?.length ? (
+                // El gráfico trabaja en décimas de millón: miles de £ / 100
+                <PriceChart data={valuations.data.map((v) => ({ price: Math.round(v.value / 100), createdAt: v.createdAt }))} />
+              ) : valuations.isLoading ? (
+                <LoadingBlock />
+              ) : (
+                <EmptyState title="Sin historial" />
+              )}
+            </div>
+          </Card>
+        ) : (
+          <Card>
+            <CardHeader title="Evolución de precio" icon={<TrendingUp className="size-5" />} />
+            <div className="p-3 sm:p-5">{p.priceHistory.length ? <PriceChart data={p.priceHistory} /> : <EmptyState title="Sin historial" />}</div>
+          </Card>
+        )}
       </div>
 
       <div className="grid gap-5 lg:grid-cols-3">

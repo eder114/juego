@@ -4,11 +4,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowDownLeft, ArrowUpRight, Pencil, Receipt, ShoppingBag, Shirt, Users } from 'lucide-react';
 import clsx from 'clsx';
 import { api, errorMessage } from '../lib/api';
-import { dateTime, money, POSITION_PLURAL, POSITIONS } from '../lib/format';
+import { dateTime, money, moneyFull, moneyK, POSITION_PLURAL, POSITIONS } from '../lib/format';
 import type { Crest, Player, Squad } from '../types';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { useTransferActions } from '../hooks/useTransferActions';
+import { useLeagueEconomy } from '../hooks/useLeagueEconomy';
+import { useEconomyTerms } from '../hooks/usePublicConfig';
+import { CoachPhoto, RarityBadge, ValueTrendBadge } from '../components/economy';
 import { Badge, Button, Card, ConfirmModal, EmptyState, ErrorState, Field, Input, LoadingBlock, Modal, PageHeader, ProgressBar, StatCard, Tabs } from '../components/ui';
 import { ClubCrest, PlayerPhoto, PositionBadge, PriceChange, StatusBadge, TeamCrest } from '../components/sport';
 import { CrestEditor } from '../components/CrestEditor';
@@ -25,9 +28,16 @@ export default function Team() {
   const { data, isLoading, error, refetch } = useQuery({ queryKey: ['team'], queryFn: () => api.get<Squad>('/team') });
   const history = useQuery({ queryKey: ['team', 'transfers'], queryFn: () => api.get<TransferHistory>('/team/transfers'), enabled: tab !== 'squad' });
   const { sell } = useTransferActions();
+  const { sellPlayer, sellCoach } = useLeagueEconomy();
+  const terms = useEconomyTerms();
+  const [sellingCoach, setSellingCoach] = useState(false);
 
   if (error) return <ErrorState error={error} onRetry={refetch} />;
   if (isLoading || !data) return <LoadingBlock />;
+  // Economía de liga: valores en miles de £, venta al banco y límites de plantilla propios
+  const eco = data.economy;
+  const ecoOf = (id: number) => eco?.players.find((x) => x.playerId === id);
+  const maxFor = (pos: (typeof POSITIONS)[number]) => (eco ? eco.limits.perPosition[pos] : data.requirements[pos]);
 
   return (
     <div className="space-y-5">
@@ -51,12 +61,50 @@ export default function Team() {
         }
       />
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard accent label="Valor del equipo" value={money(data.teamValue)} sub="Precio actual de mercado" />
-        <StatCard label="Presupuesto restante" value={money(data.budget)} sub={data.marketOpen ? 'Mercado abierto' : 'Mercado cerrado'} />
-        <StatCard label="Valor total" value={money(data.totalValue)} sub="Plantilla + presupuesto" />
-        <StatCard label="Jugadores" value={`${data.players.length}/${data.squadSize}`} sub={data.isComplete ? 'Plantilla completa' : 'Completa tu plantilla'} />
-      </div>
+      {eco ? (
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <StatCard accent label="Valor de la plantilla" value={moneyK(eco.squadValue)} sub="Valor actual en la economía de liga" />
+          <StatCard label="Presupuesto" value={moneyK(eco.wallet)} sub={moneyFull(eco.wallet)} />
+          <StatCard label="Valor total" value={moneyK(eco.squadValue + eco.wallet)} sub="Plantilla + presupuesto" />
+          <StatCard label="Jugadores" value={`${data.players.length}/${eco.limits.maxSquad}`} sub={eco.league ? `Liga «${eco.league.name}»` : 'Sin liga: aún no juegas ninguna partida'} />
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <StatCard accent label="Valor del equipo" value={money(data.teamValue)} sub="Precio actual de mercado" />
+          <StatCard label="Presupuesto restante" value={money(data.budget)} sub={data.marketOpen ? 'Mercado abierto' : 'Mercado cerrado'} />
+          <StatCard label="Valor total" value={money(data.totalValue)} sub="Plantilla + presupuesto" />
+          <StatCard label="Jugadores" value={`${data.players.length}/${data.squadSize}`} sub={data.isComplete ? 'Plantilla completa' : 'Completa tu plantilla'} />
+        </div>
+      )}
+
+      {eco && eco.league && (
+        <Card className="flex flex-wrap items-center gap-4 p-4">
+          {eco.coach ? (
+            <>
+              <CoachPhoto url={eco.coach.photoUrl} name={eco.coach.displayName} size={52} />
+              <div className="min-w-0 flex-1">
+                <p className="label">Entrenador</p>
+                <p className="flex flex-wrap items-center gap-2 font-semibold text-white">
+                  {eco.coach.displayName} <RarityBadge rarity={eco.coach.rarity} />
+                </p>
+                <p className="flex items-center gap-1.5 text-xs text-slate-400">
+                  {eco.coach.club && <ClubCrest club={eco.coach.club} size={14} />} {eco.coach.club?.name ?? 'Sin club'} · valor {moneyK(eco.coach.marketValue)} · suma puntos con los resultados reales de su club
+                </p>
+              </div>
+              <Button variant="danger" size="sm" onClick={() => setSellingCoach(true)}>Vender por {moneyK(eco.coach.saleValue)}</Button>
+            </>
+          ) : (
+            <>
+              <CoachPhoto url={null} name="Sin entrenador" size={52} />
+              <div className="min-w-0 flex-1">
+                <p className="label">Entrenador</p>
+                <p className="text-sm text-slate-300">Aún no tienes entrenador. Suma puntos por los resultados de su club: búscalo en el mercado diario de tu liga.</p>
+              </div>
+              <Link to="/market"><Button size="sm" variant="secondary">Ir al mercado</Button></Link>
+            </>
+          )}
+        </Card>
+      )}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {POSITIONS.map((pos) => (
@@ -65,11 +113,11 @@ export default function Team() {
               <span className="flex items-center gap-2 text-sm font-semibold text-white">
                 <PositionBadge position={pos} /> {POSITION_PLURAL[pos]}
               </span>
-              <span className={clsx('font-display text-xl font-bold', data.counts[pos] === data.requirements[pos] ? 'text-pitch-300' : 'text-white')}>
-                {data.counts[pos]}/{data.requirements[pos]}
+              <span className={clsx('font-display text-xl font-bold', data.counts[pos] === maxFor(pos) ? 'text-pitch-300' : 'text-white')}>
+                {data.counts[pos]}/{maxFor(pos)}
               </span>
             </div>
-            <ProgressBar value={data.counts[pos]} max={data.requirements[pos]} className="mt-3" />
+            <ProgressBar value={data.counts[pos]} max={maxFor(pos)} className="mt-3" />
           </div>
         ))}
       </div>
@@ -87,20 +135,31 @@ export default function Team() {
         </div>
       )}
 
-      <Tabs
-        value={tab}
-        onChange={setTab}
-        tabs={[
-          { value: 'squad', label: 'Plantilla', count: data.players.length },
-          { value: 'transfers', label: 'Historial de fichajes' },
-          { value: 'money', label: 'Movimientos' },
-        ]}
-      />
+      {eco ? (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="font-display text-2xl font-bold uppercase text-white">Plantilla</h2>
+          <Link to="/economy"><Button variant="secondary" size="sm" icon={<Receipt className="size-4" />}>Historial económico</Button></Link>
+        </div>
+      ) : (
+        <Tabs
+          value={tab}
+          onChange={setTab}
+          tabs={[
+            { value: 'squad', label: 'Plantilla', count: data.players.length },
+            { value: 'transfers', label: 'Historial de fichajes' },
+            { value: 'money', label: 'Movimientos' },
+          ]}
+        />
+      )}
 
       {tab === 'squad' &&
         (data.players.length === 0 ? (
           <Card>
-            <EmptyState icon={<Users className="size-6" />} title="Tu plantilla está vacía" description={`Tienes ${money(data.budget)} para fichar a ${data.squadSize} jugadores.`} action={<Link to="/market"><Button icon={<ShoppingBag className="size-4" />}>Ir al mercado</Button></Link>} />
+            {eco && !eco.league ? (
+              <EmptyState icon={<Users className="size-6" />} title="Tu equipo aún no juega en ninguna liga" description={`Crea una liga o únete a una: recibirás automáticamente ${terms.players} y ${terms.budget} para el mercado diario.`} action={<Link to="/leagues"><Button>Ir a Ligas</Button></Link>} />
+            ) : (
+              <EmptyState icon={<Users className="size-6" />} title="Tu plantilla está vacía" description={eco ? 'Ficha jugadores en el mercado diario de tu liga.' : `Tienes ${money(data.budget)} para fichar a ${data.squadSize} jugadores.`} action={<Link to="/market"><Button icon={<ShoppingBag className="size-4" />}>Ir al mercado</Button></Link>} />
+            )}
           </Card>
         ) : (
           <div className="space-y-4">
@@ -110,7 +169,7 @@ export default function Team() {
                 <Card key={pos} className="overflow-hidden">
                   <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-2.5">
                     <h3 className="text-lg font-bold uppercase">{POSITION_PLURAL[pos]}</h3>
-                    {players.length < data.requirements[pos] && (
+                    {!eco && players.length < data.requirements[pos] && (
                       <Link to="/market" className="text-xs font-semibold text-pitch-400">
                         + Fichar ({data.requirements[pos] - players.length})
                       </Link>
@@ -126,7 +185,9 @@ export default function Team() {
                     <span className="w-20" />
                   </div>
                   <div className="divide-y divide-white/[0.05]">
-                    {players.map((p) => (
+                    {players.map((p) => {
+                      const e = ecoOf(p.id);
+                      return (
                       <div key={p.id} className="grid grid-cols-[1fr_auto] items-center gap-2 px-4 py-3 md:grid-cols-[2fr_repeat(5,1fr)_auto]">
                         <div className="flex min-w-0 items-center gap-3">
                           <Link to={`/players/${p.id}`}>
@@ -140,25 +201,36 @@ export default function Team() {
                               <ClubCrest club={p.club} size={14} /> {p.club.shortName}
                               {p.status !== 'AVAILABLE' && <StatusBadge status={p.status} chance={p.chanceOfPlaying} />}
                             </div>
+                            {e && <RarityBadge rarity={p.rarity} className="mt-1" />}
                             <div className="mt-1 flex gap-3 text-xs text-slate-400 md:hidden">
-                              <span>{money(p.purchasePrice)} → <b className="text-white">{money(p.price)}</b></span>
-                              <PriceChange value={p.priceDelta} />
+                              {e ? (
+                                <>
+                                  <span>{e.purchasePrice !== null && e.source === 'MARKET' ? moneyK(e.purchasePrice) : 'Inicial'} → <b className="text-white">{moneyK(e.marketValue)}</b></span>
+                                  <ValueTrendBadge trend={e.trend} />
+                                </>
+                              ) : (
+                                <>
+                                  <span>{money(p.purchasePrice)} → <b className="text-white">{money(p.price)}</b></span>
+                                  <PriceChange value={p.priceDelta} />
+                                </>
+                              )}
                               <span>{p.stats.totalPoints} pts</span>
                             </div>
                           </div>
                         </div>
-                        <span className="hidden text-right text-sm tabular-nums text-slate-400 md:block">{money(p.purchasePrice)}</span>
-                        <span className="hidden text-right text-sm font-semibold tabular-nums text-white md:block">{money(p.price)}</span>
-                        <span className="hidden text-right md:block">
-                          <PriceChange value={p.priceDelta} />
+                        <span className="hidden text-right text-sm tabular-nums text-slate-400 md:block">
+                          {e ? (e.source === 'MARKET' && e.purchasePrice !== null ? moneyK(e.purchasePrice) : 'Equipo inicial') : money(p.purchasePrice)}
                         </span>
+                        <span className="hidden text-right text-sm font-semibold tabular-nums text-white md:block">{e ? moneyK(e.marketValue) : money(p.price)}</span>
+                        <span className="hidden text-right md:block">{e ? <ValueTrendBadge trend={e.trend} /> : <PriceChange value={p.priceDelta} />}</span>
                         <span className="hidden text-right font-display text-lg font-bold md:block">{p.stats.totalPoints}</span>
                         <span className="hidden text-right text-sm tabular-nums text-slate-300 md:block">{p.stats.form.toFixed(1)}</span>
                         <Button variant="danger" size="sm" className="w-20" onClick={() => setSelling(p)}>
                           Vender
                         </Button>
                       </div>
-                    ))}
+                      );
+                    })}
                     {players.length === 0 && <p className="px-4 py-4 text-sm text-slate-500">Sin jugadores en esta posición</p>}
                   </div>
                 </Card>
@@ -227,22 +299,53 @@ export default function Team() {
         </Card>
       )}
 
-      <ConfirmModal
-        open={!!selling}
-        onClose={() => setSelling(null)}
-        title="Vender jugador"
-        danger
-        confirmLabel={selling ? `Vender por ${money(selling.salePrice)}` : 'Vender'}
-        loading={sell.isPending}
-        onConfirm={() => selling && sell.mutate(selling, { onSuccess: () => setSelling(null) })}
-        message={
-          selling && (
-            <>
-              ¿Vender a <b className="text-white">{selling.displayName}</b>? Lo compraste por {money(selling.purchasePrice)} y recibirás {money(selling.salePrice)}.
-            </>
-          )
-        }
-      />
+      {eco ? (
+        <ConfirmModal
+          open={!!selling}
+          onClose={() => setSelling(null)}
+          title="Vender jugador"
+          danger
+          confirmLabel={selling ? `Vender por ${moneyK(ecoOf(selling.id)?.saleValue ?? 0)}` : 'Vender'}
+          loading={sellPlayer.isPending}
+          onConfirm={() => selling && sellPlayer.mutate(selling, { onSuccess: () => setSelling(null) })}
+          message={
+            selling && (
+              <>
+                ¿Vender a <b className="text-white">{selling.displayName}</b> por {moneyFull(ecoOf(selling.id)?.saleValue ?? 0)} ({eco.sellPercent}% de su valor actual)? Quedará libre y podrá volver al mercado de la liga más adelante.
+              </>
+            )
+          }
+        />
+      ) : (
+        <ConfirmModal
+          open={!!selling}
+          onClose={() => setSelling(null)}
+          title="Vender jugador"
+          danger
+          confirmLabel={selling ? `Vender por ${money(selling.salePrice)}` : 'Vender'}
+          loading={sell.isPending}
+          onConfirm={() => selling && sell.mutate(selling, { onSuccess: () => setSelling(null) })}
+          message={
+            selling && (
+              <>
+                ¿Vender a <b className="text-white">{selling.displayName}</b>? Lo compraste por {money(selling.purchasePrice)} y recibirás {money(selling.salePrice)}.
+              </>
+            )
+          }
+        />
+      )}
+      {eco?.coach && (
+        <ConfirmModal
+          open={sellingCoach}
+          onClose={() => setSellingCoach(false)}
+          title="Vender entrenador"
+          danger
+          confirmLabel={`Vender por ${moneyK(eco.coach.saleValue)}`}
+          loading={sellCoach.isPending}
+          onConfirm={() => eco.coach && sellCoach.mutate(eco.coach, { onSuccess: () => setSellingCoach(false) })}
+          message={<>¿Vender a <b className="text-white">{eco.coach.displayName}</b> por {moneyFull(eco.coach.saleValue)}?</>}
+        />
+      )}
 
       <EditTeamModal open={editOpen} onClose={() => setEditOpen(false)} name={data.team.name} crest={data.team.crest} />
     </div>

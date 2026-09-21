@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom';
-import { BarChart3, CalendarRange, Database, Gauge, Newspaper, Settings, Shield, Swords, Trophy, UserCog, Users } from 'lucide-react';
+import { BarChart3, CalendarRange, Coins, Database, Gauge, Newspaper, Settings, Shield, Swords, Trophy, UserCog, Users } from 'lucide-react';
 import clsx from 'clsx';
 
 const LINKS = [
@@ -11,6 +11,7 @@ const LINKS = [
   { to: '/admin/fixtures', label: 'Partidos', icon: Swords },
   { to: '/admin/scoring', label: 'Puntuación', icon: BarChart3 },
   { to: '/admin/leagues', label: 'Ligas', icon: Trophy },
+  { to: '/admin/economy', label: 'Economía', icon: Coins },
   { to: '/admin/news', label: 'Noticias', icon: Newspaper },
   { to: '/admin/import', label: 'Datos', icon: Database },
   { to: '/admin/settings', label: 'Configuración', icon: Settings },

@@ -7,6 +7,8 @@ import { api, qs } from '../lib/api';
 import { money, POSITION_PLURAL, POSITION_SHORT, POSITIONS } from '../lib/format';
 import type { Club, Paginated, Player, Position, Squad } from '../types';
 import { useTransferActions } from '../hooks/useTransferActions';
+import { useAuth } from '../context/AuthContext';
+import LeagueMarket from './LeagueMarket';
 import { Badge, Button, Card, EmptyState, ErrorState, Modal, PageHeader, Select, Skeleton, Tabs, Toggle } from '../components/ui';
 import { PlayerMarketCard } from '../components/PlayerCard';
 import { ClubCrest, PlayerPhoto, PositionBadge, StatusBadge } from '../components/sport';
@@ -33,7 +35,14 @@ function useDebounced<T>(value: T, ms = 300) {
   return v;
 }
 
+/** El mercado depende de la economía del equipo: mercado de la liga (v2) o mercado libre clásico. */
 export default function Market() {
+  const { user } = useAuth();
+  if (user?.team?.economyVersion === 2) return <LeagueMarket />;
+  return <ClassicMarket />;
+}
+
+function ClassicMarket() {
   const navigate = useNavigate();
   const [search, setSearch] = useState('');
   const [position, setPosition] = useState<Position | 'ALL'>('ALL');
