@@ -258,6 +258,9 @@ model FantasyTeam {
   economyVersion  Int  @default(1)
   economyLeagueId Int? // liga cuya economía juega el equipo (una "partida")
   wallet          Int  @default(0) // economía de liga: miles de £
+  // Reparto inicial de la partida: JSON {formation, starters[], bench[], assignedAt} y cuándo se vio su presentación
+  initialSquad     String?
+  initialRevealedAt DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

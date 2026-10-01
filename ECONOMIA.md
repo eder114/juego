@@ -201,9 +201,21 @@ Todos los parámetros se validan antes de guardar; por ejemplo, las rarezas no p
 
 Las cartas (nombre, rareza, efecto, límites, si se pueden activar y si se pueden conseguir) se editan en Administración → Economía → Cartas.
 
+## 9 bis. Presentación del equipo inicial
+
+Cuando el backend reparte el equipo inicial, el usuario no entra directamente al dashboard: primero ve una presentación en la que sus 13 jugadores se revelan uno a uno.
+
+- **Estado en el servidor.** `joinEconomy` guarda el reparto (`FantasyTeam.initialSquad`: formación, titulares y suplentes) dentro de la misma transacción que asigna los jugadores, y deja `initialRevealedAt` vacío. Los estados son: sin partida (`NOT_ASSIGNED`), repartido y pendiente de ver (`PENDING`) y ya visto (`COMPLETED`).
+- **API.** `GET /api/leagues/:id/initial-team` devuelve el estado, los jugadores reales en orden de revelación (titulares y después suplentes), la formación, el presupuesto y el valor del equipo. `POST /api/leagues/:id/initial-team/complete` marca la presentación como vista y es idempotente. Ninguna de las dos asigna jugadores.
+- **Entrada automática.** `/auth/me` indica si hay una presentación pendiente, y mientras lo esté el usuario entra en la pantalla de presentación en lugar del dashboard.
+- **La pantalla no asigna nada.** Solo muestra lo que el backend ya guardó: foto, nombre, apellidos, club con escudo, posición, valor, puntos y si es titular o suplente. Si la API falla, se muestra un error con «Reintentar» y nunca jugadores inventados.
+- **Recargar durante la animación** no reparte otro equipo: la presentación vuelve a empezar, pero los 13 jugadores y el presupuesto son los mismos (la asignación ya ocurrió una sola vez).
+- **Al terminar** (o al pulsar «Saltar presentación») se marca como vista y se entra en «Mi equipo». Al volver a la liga no reaparece.
+- **Animación.** Revelación de tarjeta, destello, progreso («Jugador 4 de 11» / «Suplente 1 de 2»), transición de «Suplentes» y resumen final. Si el jugador más valioso del reparto destaca mucho sobre el resto, su revelación lleva un realce extra; esto no cambia qué jugadores toca. Con `prefers-reduced-motion` se muestra el resumen completo sin animaciones ni avances automáticos.
+
 ## 10. Pruebas
 
-`npm test` (servidor) ejecuta 66 pruebas:
+`npm test` (servidor) ejecuta 69 pruebas:
 
 - `tests/domain.test.ts`: las 21 pruebas anteriores de puntuación, alineaciones y precios.
 - `tests/economy.test.ts`: 27 pruebas unitarias de dominio.
@@ -211,7 +223,7 @@ Las cartas (nombre, rareza, efecto, límites, si se pueden activar y si se puede
   - Mercado: 10 jugadores sin duplicados y sin comprados, rareza, pity, diversidad y entre 1 y 2 entrenadores.
   - Rarezas y valoración: subida, bajada, límites, suavizado y elasticidad.
   - Zonas horarias y horario de verano, Wordle (evaluación, tildes y Ñ, premios), rachas, modificadores de cartas y puntos de entrenador.
-- `tests/economy.integration.test.ts`: 18 pruebas contra una copia de la base de datos real.
+- `tests/economy.integration.test.ts`: 21 pruebas contra una copia de la base de datos real.
   - Equipo inicial y £100M para cuatro mánagers, y propiedad única.
   - Ciclo único ante 5 peticiones simultáneas.
   - Compra simultánea con un único ganador y sin cobro al perdedor.
@@ -222,5 +234,6 @@ Las cartas (nombre, rareza, efecto, límites, si se pueden activar y si se puede
   - Doble puntos aplicada dentro del motor de puntuación real, idempotente al reprocesar la jornada.
   - Valoración por jornada idempotente.
   - Salida de la partida y reinicio de la economía.
+  - Presentación del equipo inicial: queda pendiente tras el reparto, coincide exactamente con la plantilla guardada, marcarla como vista es idempotente y no toca jugadores ni presupuesto, y tras reinicializar la liga vuelve a quedar pendiente.
 
 **Límite de las pruebas.** La concurrencia se ha probado sobre SQLite, que serializa las escrituras. En PostgreSQL, las mismas garantías vienen de las actualizaciones condicionales (`UPDATE … WHERE status = 'AVAILABLE'`, `WHERE wallet >= precio`) y de las restricciones únicas, que son seguras en `READ COMMITTED`. No hay una prueba automática contra PostgreSQL.

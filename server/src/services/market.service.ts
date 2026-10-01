@@ -445,16 +445,17 @@ async function dealStarterSquad(tx: Tx, teamId: number, leagueId: number, rng: R
     select: { id: true, position: true, rarity: true, clubId: true, price: true, marketValue: true },
   });
   const candidates = players.filter((p) => !taken.has(p.id)).map((p) => ({ ...p, position: p.position as Position, rarity: p.rarity as PlayerRarity }));
+  const formation = resolveFormation(s.v2_starter_formation, rng);
   const { starters, bench } = buildStarterSquad(
     candidates,
-    { formation: resolveFormation(s.v2_starter_formation, rng), bench: s.v2_starter_bench, weights: starterWeights(s), maxPerClub: s.max_players_per_club },
+    { formation, bench: s.v2_starter_bench, weights: starterWeights(s), maxPerClub: s.max_players_per_club },
     rng,
   );
   const byId = new Map(players.map((p) => [p.id, p]));
   const all = [...starters, ...bench];
   await tx.leaguePlayerOwnership.createMany({ data: all.map((c) => ({ leagueId, playerId: c.id, teamId, purchasePrice: byId.get(c.id)!.marketValue!, source: 'STARTER' })) });
   await tx.fantasyTeamPlayer.createMany({ data: all.map((c) => ({ teamId, playerId: c.id, purchasePrice: byId.get(c.id)!.price })) });
-  return { starters: starters.map((c) => c.id), bench: bench.map((c) => c.id) };
+  return { formation, starters: starters.map((c) => c.id), bench: bench.map((c) => c.id) };
 }
 
 /** Borra las alineaciones de jornadas que aún no han empezado (la plantilla va a cambiar por completo). */
@@ -500,6 +501,11 @@ export async function joinEconomy(userId: string, leagueId: number, opts: { conf
         await tx.fantasyTeamPlayer.deleteMany({ where: { teamId: team.id } });
         await clearFutureLineups(tx, team.id);
         const squad = await dealStarterSquad(tx, team.id, leagueId, cryptoRng);
+        // El reparto queda guardado para poder presentárselo al usuario (una sola vez)
+        await tx.fantasyTeam.update({
+          where: { id: team.id },
+          data: { initialSquad: JSON.stringify({ ...squad, assignedAt: new Date().toISOString() }), initialRevealedAt: null },
+        });
         // El monedero empieza exactamente en el presupuesto inicial
         const current = (await tx.fantasyTeam.findUniqueOrThrow({ where: { id: team.id }, select: { wallet: true } })).wallet;
         if (current !== 0) await changeWallet(tx, { teamId: team.id, amount: -current, type: 'ECONOMY_RESET', description: 'Saldo anterior retirado al empezar una nueva partida', userId, leagueId, allowNegative: true });
@@ -538,7 +544,7 @@ export async function leaveEconomy(teamId: number, reason: string, actor?: strin
     await clearFutureLineups(tx, teamId);
     const { wallet } = await tx.fantasyTeam.findUniqueOrThrow({ where: { id: teamId }, select: { wallet: true } });
     if (wallet !== 0) await changeWallet(tx, { teamId, amount: -wallet, type: 'ECONOMY_RESET', description: `Fin de la partida en la liga (${reason})`, leagueId, allowNegative: true });
-    await tx.fantasyTeam.update({ where: { id: teamId }, data: { economyLeagueId: null } });
+    await tx.fantasyTeam.update({ where: { id: teamId }, data: { economyLeagueId: null, initialSquad: null, initialRevealedAt: null } });
     await audit(tx, { leagueId, teamId, userId: actor ?? team.userId, action: 'ECONOMY_LEFT', details: { reason, snapshot } });
   });
   invalidatePlayerAggregates();
@@ -636,6 +642,54 @@ export async function leagueEconomySummary(leagueId: number, userId: string) {
       .map((p) => ({ teamId: p.id, teamName: p.name, managerName: p.user.managerName, players: p._count.playerOwnerships, squadValue: teamValue.get(p.id) ?? 0 }))
       .sort((a, b) => b.squadValue - a.squadValue),
   };
+}
+
+/**
+ * Presentación del equipo inicial. El reparto lo hace `joinEconomy` dentro de una transacción; aquí solo se
+ * consulta lo ya guardado (nunca se asignan jugadores) y se marca la presentación como vista.
+ * Estados: NOT_ASSIGNED (aún sin partida) · PENDING (repartido, sin ver) · COMPLETED (ya visto).
+ */
+export async function getInitialTeamReveal(userId: string, leagueId: number) {
+  const team = await economyTeam(userId);
+  const base = { leagueId, league: team.economyLeague ? { id: team.economyLeague.id, name: team.economyLeague.name } : null };
+  if (team.economyLeagueId !== leagueId || !team.initialSquad) return { ...base, status: 'NOT_ASSIGNED' as const, players: [], starters: 0, bench: 0, wallet: team.wallet, squadValue: 0, formation: null };
+
+  const squad = JSON.parse(team.initialSquad) as { formation: string; starters: number[]; bench: number[]; assignedAt: string };
+  const ids = [...squad.starters, ...squad.bench];
+  const [rows, { map }] = await Promise.all([
+    prisma.fantasyTeamPlayer.findMany({ where: { teamId: team.id, playerId: { in: ids } }, include: { player: { select: playerSelect } } }),
+    getPlayerAggregates(),
+  ]);
+  const byId = new Map(rows.map((r) => [r.playerId, r.player]));
+  // Orden de revelación: titulares (por línea) y después suplentes. Solo jugadores que siguen en la plantilla.
+  const players = ids
+    .filter((id) => byId.has(id))
+    .map((id, index) => ({
+      order: index,
+      role: squad.starters.includes(id) ? ('STARTER' as const) : ('BENCH' as const),
+      player: toPlayerDTO(byId.get(id)!, aggFor(map, id)),
+    }));
+  return {
+    ...base,
+    status: team.initialRevealedAt ? ('COMPLETED' as const) : ('PENDING' as const),
+    formation: squad.formation,
+    assignedAt: squad.assignedAt,
+    revealedAt: team.initialRevealedAt,
+    players,
+    starters: players.filter((p) => p.role === 'STARTER').length,
+    bench: players.filter((p) => p.role === 'BENCH').length,
+    wallet: team.wallet,
+    squadValue: players.reduce((sum, p) => sum + (p.player.marketValue ?? 0), 0),
+    team: { id: team.id, name: team.name, crest: JSON.parse(team.crest || '{}') },
+  };
+}
+
+/** Marca la presentación como vista (idempotente: repetirla no cambia nada ni reparte jugadores). */
+export async function completeInitialReveal(userId: string, leagueId: number) {
+  const team = await economyTeam(userId);
+  if (team.economyLeagueId !== leagueId) throw badRequest('Tu equipo no juega la economía de esta liga');
+  await prisma.fantasyTeam.updateMany({ where: { id: team.id, initialRevealedAt: null }, data: { initialRevealedAt: new Date() } });
+  return { completed: true };
 }
 
 export async function marketAuditLog(leagueId: number, take = 100) {

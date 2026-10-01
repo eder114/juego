@@ -45,6 +45,7 @@ const NAV = [
   { to: '/clubs', label: 'Clubes', icon: Shield },
   { to: '/news', label: 'Noticias', icon: Newspaper },
 ];
+const REVEAL_PATH = '/equipo-inicial';
 const MOBILE_NAV = ['/dashboard', '/lineup', '/market', '/leagues'].map((to) => NAV.find((n) => n.to === to)!);
 
 export function Logo({ className }: { className?: string }) {
@@ -155,6 +156,12 @@ export default function AppLayout() {
     setMoreOpen(false);
     window.scrollTo({ top: 0 });
   }, [location.pathname]);
+
+  // Equipo inicial recién repartido: se presenta una sola vez antes de seguir navegando
+  const revealPending = user?.team?.initialRevealPending;
+  useEffect(() => {
+    if (revealPending && location.pathname !== REVEAL_PATH) navigate(REVEAL_PATH, { replace: true });
+  }, [revealPending, location.pathname, navigate]);
 
   const doLogout = () => {
     logout();

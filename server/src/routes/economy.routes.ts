@@ -47,6 +47,14 @@ economyRouter.post('/leagues/:id/economy/join', actionLimiter, async (req, res) 
   res.status(201).json(await market.joinEconomy(req.user!.id, intParam(req.params.id), body));
 });
 
+economyRouter.get('/leagues/:id/initial-team', async (req, res) => {
+  res.json(await market.getInitialTeamReveal(req.user!.id, intParam(req.params.id)));
+});
+
+economyRouter.post('/leagues/:id/initial-team/complete', async (req, res) => {
+  res.json(await market.completeInitialReveal(req.user!.id, intParam(req.params.id)));
+});
+
 economyRouter.patch('/leagues/:id/economy/schedule', async (req, res) => {
   const leagueId = intParam(req.params.id);
   await requireLeagueAdmin(leagueId, req.user!.id, req.user!.role === 'ADMIN');

@@ -111,6 +111,44 @@ describe.skipIf(!hasDb)('economía de liga (integración)', () => {
     });
   });
 
+  describe('presentación del equipo inicial', () => {
+    it('queda pendiente tras el reparto y coincide exactamente con la plantilla guardada', async () => {
+      const reveal = await m.market.getInitialTeamReveal(users[0].id, leagueId);
+      expect(reveal.status).toBe('PENDING');
+      expect(reveal.players).toHaveLength(13);
+      expect(reveal.starters).toBe(11);
+      expect(reveal.bench).toBe(2);
+      expect(reveal.wallet).toBe(100000);
+      expect(reveal.formation).toBeTruthy();
+      const ids = reveal.players.map((p) => p.player.id);
+      expect(new Set(ids).size).toBe(13);
+      // Los 13 jugadores presentados son exactamente los almacenados en la plantilla
+      const team = await teamOf(users[0].id);
+      const squad = await m.prisma.fantasyTeamPlayer.findMany({ where: { teamId: team.id } });
+      expect([...ids].sort((a, b) => a - b)).toEqual(squad.map((s) => s.playerId).sort((a, b) => a - b));
+      // Los primeros 11 son los titulares y los 2 últimos, los suplentes
+      expect(reveal.players.slice(0, 11).every((p) => p.role === 'STARTER')).toBe(true);
+      expect(reveal.players.slice(11).every((p) => p.role === 'BENCH')).toBe(true);
+    });
+
+    it('marcarla como vista es idempotente y no reparte jugadores ni toca el presupuesto', async () => {
+      const team = await teamOf(users[0].id);
+      const before = { players: await m.prisma.fantasyTeamPlayer.count({ where: { teamId: team.id } }), wallet: team.wallet };
+      await m.market.completeInitialReveal(users[0].id, leagueId);
+      const first = await m.prisma.fantasyTeam.findUniqueOrThrow({ where: { id: team.id } });
+      await m.market.completeInitialReveal(users[0].id, leagueId);
+      const second = await m.prisma.fantasyTeam.findUniqueOrThrow({ where: { id: team.id } });
+      expect(second.initialRevealedAt).toEqual(first.initialRevealedAt);
+      expect(second.wallet).toBe(before.wallet);
+      expect(await m.prisma.fantasyTeamPlayer.count({ where: { teamId: team.id } })).toBe(before.players);
+      expect((await m.market.getInitialTeamReveal(users[0].id, leagueId)).status).toBe('COMPLETED');
+    });
+
+    it('en una liga que no es su partida no hay nada que presentar', async () => {
+      expect((await m.market.getInitialTeamReveal(users[0].id, leagueId + 999)).status).toBe('NOT_ASSIGNED');
+    });
+  });
+
   describe('mercado diario compartido', () => {
     it('un único ciclo con 10 jugadores y 1–2 entrenadores, igual para todos', async () => {
       const cycles = await Promise.all([1, 2, 3, 4, 5].map(() => m.market.getCurrentCycle(leagueId)));
@@ -388,6 +426,8 @@ describe.skipIf(!hasDb)('economía de liga (integración)', () => {
       const snapshot = await m.prisma.marketAuditLog.findFirstOrThrow({ where: { leagueId, action: 'ECONOMY_RESET' } });
       expect(JSON.parse(snapshot.details).teams).toHaveLength(3);
       expect(await m.prisma.leaguePlayerOwnership.count({ where: { leagueId } })).toBe(39);
+      // El equipo nuevo vuelve a tener presentación pendiente
+      expect((await m.market.getInitialTeamReveal(users[0].id, leagueId)).status).toBe('PENDING');
     });
   });
 });

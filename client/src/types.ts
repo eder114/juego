@@ -96,6 +96,8 @@ export interface Me {
     economyVersion: 1 | 2;
     wallet: number;
     economyLeague: { id: number; name: string } | null;
+    /** El equipo inicial de la partida se ha repartido y aún no se ha visto su presentación */
+    initialRevealPending: boolean;
   } | null;
 }
 

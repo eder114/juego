@@ -19,6 +19,7 @@ const Team = lazy(() => import('./pages/Team'));
 const Cards = lazy(() => import('./pages/Cards'));
 const Challenges = lazy(() => import('./pages/Challenges'));
 const Economy = lazy(() => import('./pages/Economy'));
+const InitialTeamReveal = lazy(() => import('./pages/InitialTeamReveal'));
 const Lineup = lazy(() => import('./pages/Lineup'));
 const Leagues = lazy(() => import('./pages/Leagues'));
 const LeagueDetail = lazy(() => import('./pages/LeagueDetail'));
@@ -88,6 +89,7 @@ export default function App() {
           <Route path="/cards" element={<Cards />} />
           <Route path="/challenges" element={<Challenges />} />
           <Route path="/economy" element={<Economy />} />
+          <Route path="/equipo-inicial" element={<InitialTeamReveal />} />
           <Route path="/lineup" element={<Lineup />} />
           <Route path="/market" element={<Market />} />
           <Route path="/players/:id" element={<PlayerDetail />} />

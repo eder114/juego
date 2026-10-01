@@ -27,11 +27,28 @@ export async function getMe(userId: string) {
       avatarUrl: true,
       createdAt: true,
       favoriteClub: { select: clubLiteSelect },
-      team: { select: { id: true, name: true, crest: true, budget: true, totalPoints: true, createdAt: true, economyVersion: true, wallet: true, economyLeague: { select: { id: true, name: true } } } },
+      team: {
+        select: {
+          id: true,
+          name: true,
+          crest: true,
+          budget: true,
+          totalPoints: true,
+          createdAt: true,
+          economyVersion: true,
+          wallet: true,
+          economyLeague: { select: { id: true, name: true } },
+          initialSquad: true,
+          initialRevealedAt: true,
+        },
+      },
     },
   });
   if (!user) throw notFound('Usuario no encontrado');
-  return { ...user, team: user.team ? { ...user.team, crest: parseCrest(user.team.crest) } : null };
+  if (!user.team) return { ...user, team: null };
+  // La presentación del equipo inicial está pendiente mientras exista reparto guardado y no se haya visto
+  const { initialSquad, initialRevealedAt, ...team } = user.team;
+  return { ...user, team: { ...team, crest: parseCrest(team.crest), initialRevealPending: !!initialSquad && !initialRevealedAt } };
 }
 
 export async function register(input: {
