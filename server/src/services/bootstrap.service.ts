@@ -15,6 +15,7 @@ import { seedDemo } from './demo.service';
 import { ensureCardCatalog } from './card.service';
 import { ensurePlayerValuations } from './valuation.service';
 import { syncCoaches } from './coach.service';
+import { ensureTeamLeagues } from './team.service';
 
 export const bootstrapState = { seeding: false, error: null as string | null };
 const BOOTSTRAP_MARKER = 'bootstrap_completed';
@@ -170,6 +171,8 @@ export async function bootstrapOnBoot() {
  * precio oficial del que parte el valor inicial (así un recálculo de temporada no las aplica dos veces).
  */
 export async function ensureEconomyReady() {
+  // Equipos creados antes de que existieran los equipos por liga: se asignan a la suya
+  await ensureTeamLeagues();
   await ensureCardCatalog();
   const firstTime = (await prisma.playerValuation.count()) === 0;
   await ensurePlayerValuations();

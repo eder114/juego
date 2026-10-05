@@ -7,6 +7,7 @@ import { api, errorMessage } from '../lib/api';
 import { dateTime, RARITY_META } from '../lib/format';
 import type { Crest, Player, PowerUpCard, Squad } from '../types';
 import { useToast } from '../context/ToastContext';
+import { useLeague } from '../context/LeagueContext';
 import { Badge, Button, Card, CardHeader, EmptyState, ErrorState, LoadingBlock, Modal, PageHeader, Select } from '../components/ui';
 import { ClubCrest, PlayerPhoto, PositionBadge, TeamCrest } from '../components/sport';
 import { RarityBadge, useServerCountdown } from '../components/economy';
@@ -47,12 +48,13 @@ const effectLabel = (c: PowerUpCard) => (c.effect === 'DOUBLE_POINTS' ? `×${(c.
 export default function Cards() {
   const qc = useQueryClient();
   const toast = useToast();
-  const { data, isLoading, error, refetch } = useQuery({ queryKey: ['cards'], queryFn: () => api.get<CardsData>('/cards') });
+  const { activeLeagueId, withLeague } = useLeague();
+  const { data, isLoading, error, refetch } = useQuery({ queryKey: ['cards', activeLeagueId], queryFn: () => api.get<CardsData>(withLeague('/cards')) });
   const [activating, setActivating] = useState<CardsData['inventory'][number] | null>(null);
   const countdown = useServerCountdown(data?.gameweek?.deadline, data?.serverTime);
 
   const cancel = useMutation({
-    mutationFn: (id: number) => api.post(`/cards/activations/${id}/cancel`),
+    mutationFn: (id: number) => api.post(withLeague(`/cards/activations/${id}/cancel`)),
     onSuccess: () => {
       toast.push('success', 'Carta desactivada: vuelve a tu inventario');
       qc.invalidateQueries({ queryKey: ['cards'] });
@@ -232,13 +234,18 @@ function ActivateModal({ teamCard, gameweek, onClose }: { teamCard: CardsData['i
   const [teamId, setTeamId] = useState<number | null>(null);
   const [playerId, setPlayerId] = useState<number | null>(null);
 
-  const squad = useQuery({ queryKey: ['team'], queryFn: () => api.get<Squad>('/team'), enabled: !rival });
-  const rivals = useQuery({ queryKey: ['cards', 'rivals'], queryFn: () => api.get<Rival[]>('/cards/rivals'), enabled: rival });
-  const rivalSquad = useQuery({ queryKey: ['cards', 'rival-squad', teamId], queryFn: () => api.get<Player[]>(`/cards/teams/${teamId}/players`), enabled: rival && !!teamId });
+  const { activeLeagueId, withLeague } = useLeague();
+  const squad = useQuery({ queryKey: ['team', activeLeagueId], queryFn: () => api.get<Squad>(withLeague('/team')), enabled: !rival });
+  const rivals = useQuery({ queryKey: ['cards', activeLeagueId, 'rivals'], queryFn: () => api.get<Rival[]>(withLeague('/cards/rivals')), enabled: rival });
+  const rivalSquad = useQuery({
+    queryKey: ['cards', activeLeagueId, 'rival-squad', teamId],
+    queryFn: () => api.get<Player[]>(withLeague(`/cards/teams/${teamId}/players`)),
+    enabled: rival && !!teamId,
+  });
   const players: Player[] = rival ? (rivalSquad.data ?? []) : (squad.data?.players ?? []);
 
   const activate = useMutation({
-    mutationFn: () => api.post('/cards/activate', { teamCardId: teamCard.id, targetPlayerId: playerId, targetTeamId: rival ? teamId : null, requestId }),
+    mutationFn: () => api.post(withLeague('/cards/activate'), { teamCardId: teamCard.id, targetPlayerId: playerId, targetTeamId: rival ? teamId : null, requestId }),
     onSuccess: () => {
       toast.push('success', `«${card.name}» activada para la ${gameweek.name}`);
       qc.invalidateQueries({ queryKey: ['cards'] });

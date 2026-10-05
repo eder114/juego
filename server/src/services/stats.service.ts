@@ -1,12 +1,12 @@
 import { prisma } from '../lib/prisma';
 import { clubLiteSelect, playerSelect } from '../lib/dto';
 import { pickBestLineup } from '../domain/lineup';
-import { formatK } from '../domain/economy';
 import { BLOCKING_STATUSES, type PlayerStatus, type Position } from '../domain/constants';
 import { aggFor, getPlayerAggregates, toPlayerDTO } from './player-stats.service';
 import { computeStandings, getUserGlobalPosition } from './ranking.service';
 import { getEditableGameweek, getGameweekContext, fixtureInclude } from './gameweek.service';
 import { getSettings, squadRequirements } from './settings.service';
+import { findTeam } from './team.service';
 
 /** Equipo y jugador de la jornada: mejor once posible según los puntos reales. */
 export async function teamOfTheWeek(gameweekId?: number) {
@@ -121,11 +121,11 @@ export async function pointsHistory(teamId: number) {
   });
 }
 
-export async function dashboard(userId: string) {
-  const team = await prisma.fantasyTeam.findUnique({
-    where: { userId },
-    include: { players: { include: { player: { select: playerSelect } } } },
-  });
+export async function dashboard(userId: string, leagueId?: number | null) {
+  const base = await findTeam(userId, leagueId);
+  const team = base
+    ? await prisma.fantasyTeam.findUnique({ where: { id: base.id }, include: { players: { include: { player: { select: playerSelect } } }, league: { select: { id: true, name: true, type: true, economyVersion: true } } } })
+    : null;
   const settings = await getSettings();
   const { current, next } = await getGameweekContext();
   const editable = await getEditableGameweek();
@@ -150,9 +150,7 @@ export async function dashboard(userId: string) {
   const v2 = team?.economyVersion === 2;
   // Economía de liga: la plantilla empieza con 11 + suplentes y puede crecer hasta el máximo configurado
   const size = v2 ? settings.v2_max_squad : req.GK + req.DEF + req.MID + req.FWD;
-  if (v2 && team && !team.economyLeagueId)
-    alerts.push({ level: 'warning', title: 'Tu equipo aún no juega en ninguna liga', message: `Crea o únete a una liga para recibir ${11 + settings.v2_starter_bench} jugadores y ${formatK(settings.v2_initial_budget)}`, link: '/leagues' });
-  else if (v2 && squad.length > 0 && squad.length < 11)
+  if (v2 && squad.length > 0 && squad.length < 11)
     alerts.push({ level: 'warning', title: 'No puedes alinear un once completo', message: `Tienes ${squad.length} jugadores: ficha en el mercado de tu liga`, link: '/market' });
   else if (!v2 && team && squad.length < size) alerts.push({ level: 'warning', title: 'Plantilla incompleta', message: `Tienes ${squad.length}/${size} jugadores`, link: '/market' });
   const unavailable = squad.filter((p) => BLOCKING_STATUSES.includes(p.status as PlayerStatus));
@@ -184,7 +182,7 @@ export async function dashboard(userId: string) {
     teamValue: v2 ? squad.reduce((s, p) => s + (p.marketValue ?? 0), 0) : squad.reduce((s, p) => s + p.price, 0),
     budget: v2 ? (team?.wallet ?? 0) : (team?.budget ?? 0),
     economyVersion: team?.economyVersion ?? 1,
-    economyLeague: v2 && team?.economyLeagueId ? await prisma.league.findUnique({ where: { id: team.economyLeagueId }, select: { id: true, name: true } }) : null,
+    economyLeague: team?.league ? { id: team.league.id, name: team.league.name } : null,
     squadCount: squad.length,
     squadSize: size,
     currentGameweek: current ? { id: current.id, name: current.name, status: current.status, deadline: current.deadline } : null,

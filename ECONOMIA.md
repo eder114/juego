@@ -22,16 +22,27 @@ Este documento explica cómo está construida la nueva economía (versión 2) so
 
 ## 2. Conflictos con la especificación y solución adoptada
 
-### 2.1 Propiedad y mercado «por liga» frente a un único equipo por usuario
+### 2.1 Un equipo por usuario y liga
 
-La especificación pide que cada liga tenga su propio mercado y que la propiedad de un jugador sea única **dentro de cada liga**. La aplicación tiene un solo equipo por usuario, y ese equipo alimenta la alineación, la puntuación, las clasificaciones y el dashboard. Rehacerlo como «un equipo por liga» habría obligado a reescribir casi todo el backend y el frontend.
+La especificación pide que cada liga tenga su propio mercado y que la propiedad de un jugador sea única **dentro de cada liga**. La aplicación nació con un solo equipo por usuario, y ese equipo alimentaba alineación, puntuación, clasificaciones y dashboard.
 
-**Solución.** Cada equipo juega la economía de **una** liga, su «partida» (`FantasyTeam.economyLeagueId`):
+**Solución.** La unidad del juego es ahora **usuario + liga = equipo**:
 
-- Dentro de esa liga, la propiedad es única gracias a la restricción `league_player_ownerships (leagueId, playerId)`. En otra liga, el mismo jugador puede pertenecer a otro equipo.
-- El equipo sigue compitiendo en las clasificaciones del resto de sus ligas y en la liga global, igual que antes.
-- Al crear una liga, o al unirse a una, un equipo que todavía no juega ninguna partida recibe automáticamente su equipo inicial y su presupuesto.
-- Si el equipo ya juega en otra liga, entra solo para la clasificación, y la página de la liga lo explica.
+- `fantasy_teams` tiene `leagueId` y la restricción `UNIQUE(userId, leagueId)`: un usuario tiene como mucho un equipo en cada liga, y tantos equipos como ligas juegue.
+- El equipo creado al registrarse vive en la **liga global** y mantiene el sistema clásico (`economyVersion 1`, presupuesto en décimas de millón).
+- Al unirse a una liga con economía se crea un equipo nuevo para esa liga, con sus 13 jugadores iniciales y su monedero de £100M. Nada de lo que ocurre allí toca a los demás equipos del usuario.
+- Presupuesto, plantilla, alineación, cartas, fichajes, historial de movimientos y estadísticas son independientes por equipo, es decir, por liga.
+- La propiedad es única dentro de cada liga gracias a `league_player_ownerships (leagueId, playerId)`. El mismo jugador puede pertenecer a mánagers distintos en ligas distintas, y un mánager puede tener al mismo jugador en dos de sus ligas.
+- Cada liga tiene su propio ciclo de mercado (`market_cycles`), con su horario y su zona horaria: los mercados nunca se comparten entre ligas.
+- Al abandonar una liga se elimina el equipo de esa liga (con una instantánea previa en la auditoría) y se liberan sus jugadores. El equipo de la liga global nunca se puede borrar así.
+- La clasificación global es la de la liga global; la de cada liga sólo incluye los equipos de esa liga.
+- El frontend guarda la liga activa (`LeagueContext` + `pf_active_league`) y la envía como `?league=` en cada petición de equipo. Al cambiar de liga se descarta la caché de consultas para no mostrar datos de la liga anterior.
+
+#### Migración de los datos existentes
+
+Los equipos anteriores no se borran: al arrancar, `ensureTeamLeagues()` asigna a cada equipo sin liga su `economyLeagueId` o, si no jugaba ninguna economía, la liga global, y garantiza su pertenencia a esa liga. La columna `economyLeagueId` se mantiene como campo obsoleto para no romper los datos históricos.
+
+Como consecuencia, el ajuste `economy_v2_new_teams` desaparece: la economía de un equipo la decide la liga en la que se crea, no un interruptor global.
 
 ### 2.2 Unidad monetaria
 
@@ -184,7 +195,7 @@ Al cerrar la jornada, las activaciones pasan a `APPLIED` con su efecto en puntos
 ## 8. Migración del sistema antiguo
 
 - No se borra nada automáticamente. Los equipos existentes siguen en la economía clásica (`economyVersion = 1`) con su mercado libre, su presupuesto y su plantilla.
-- Los equipos y ligas nuevos usan la economía de liga, según los ajustes `economy_v2_new_teams` y `economy_v2_new_leagues`.
+- Las ligas nuevas usan la economía de liga según el ajuste `economy_v2_new_leagues`; cada equipo hereda la economía de la liga en la que se crea.
 - **Por equipo.** Desde la página de una liga con economía, el mánager puede pasar su equipo clásico a esa partida, con una confirmación explícita. La plantilla anterior queda en la auditoría (`ECONOMY_JOINED.previous`).
 - **Por liga.** Administración → Economía → «Migrar a economía de liga». La liga global no se migra: sigue siendo la clasificación general.
 - **REINICIALIZAR ECONOMÍA DE LIGA.** Es una acción administrativa que exige escribir `REINICIALIZAR`.
@@ -215,7 +226,7 @@ Cuando el backend reparte el equipo inicial, el usuario no entra directamente al
 
 ## 10. Pruebas
 
-`npm test` (servidor) ejecuta 69 pruebas:
+`npm test` (servidor) ejecuta 78 pruebas:
 
 - `tests/domain.test.ts`: las 21 pruebas anteriores de puntuación, alineaciones y precios.
 - `tests/economy.test.ts`: 27 pruebas unitarias de dominio.
@@ -223,7 +234,7 @@ Cuando el backend reparte el equipo inicial, el usuario no entra directamente al
   - Mercado: 10 jugadores sin duplicados y sin comprados, rareza, pity, diversidad y entre 1 y 2 entrenadores.
   - Rarezas y valoración: subida, bajada, límites, suavizado y elasticidad.
   - Zonas horarias y horario de verano, Wordle (evaluación, tildes y Ñ, premios), rachas, modificadores de cartas y puntos de entrenador.
-- `tests/economy.integration.test.ts`: 21 pruebas contra una copia de la base de datos real.
+- `tests/economy.integration.test.ts`: 30 pruebas contra una copia de la base de datos real.
   - Equipo inicial y £100M para cuatro mánagers, y propiedad única.
   - Ciclo único ante 5 peticiones simultáneas.
   - Compra simultánea con un único ganador y sin cobro al perdedor.
@@ -235,5 +246,6 @@ Cuando el backend reparte el equipo inicial, el usuario no entra directamente al
   - Valoración por jornada idempotente.
   - Salida de la partida y reinicio de la economía.
   - Presentación del equipo inicial: queda pendiente tras el reparto, coincide exactamente con la plantilla guardada, marcarla como vista es idempotente y no toca jugadores ni presupuesto, y tras reinicializar la liga vuelve a quedar pendiente.
+  - Equipos independientes por liga: la segunda liga reparte una plantilla propia; el mismo jugador puede tener dueños distintos en ligas distintas pero nunca dos en la misma; comprar o vender en una liga no altera la otra; alineaciones, cartas e historial separados; cada liga recupera su equipo y su ciclo de mercado; la clasificación de una liga sólo incluye sus equipos.
 
 **Límite de las pruebas.** La concurrencia se ha probado sobre SQLite, que serializa las escrituras. En PostgreSQL, las mismas garantías vienen de las actualizaciones condicionales (`UPDATE … WHERE status = 'AVAILABLE'`, `WHERE wallet >= precio`) y de las restricciones únicas, que son seguras en `READ COMMITTED`. No hay una prueba automática contra PostgreSQL.

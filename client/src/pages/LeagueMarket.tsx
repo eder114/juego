@@ -8,6 +8,7 @@ import { moneyFull, moneyK, POSITION_LABEL } from '../lib/format';
 import type { LeagueMarket as LeagueMarketData, MarketListing } from '../types';
 import { useLeagueEconomy } from '../hooks/useLeagueEconomy';
 import { useEconomyTerms } from '../hooks/usePublicConfig';
+import { useLeague } from '../context/LeagueContext';
 import { Button, Card, EmptyState, ErrorState, Modal, PageHeader, Skeleton, StatCard } from '../components/ui';
 import { ClubCrest, PlayerPhoto, PositionBadge, StatusBadge } from '../components/sport';
 import { CoachPhoto, RarityBadge, useServerCountdown, ValueTrendBadge } from '../components/economy';
@@ -24,9 +25,10 @@ const STATUS_CHIP = {
  */
 export default function LeagueMarket() {
   const qc = useQueryClient();
+  const { activeLeagueId, withLeague } = useLeague();
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['league-market'],
-    queryFn: () => api.get<LeagueMarketData>('/market/league'),
+    queryKey: ['league-market', activeLeagueId],
+    queryFn: () => api.get<LeagueMarketData>(withLeague('/market/league')),
     refetchInterval: (q) => (q.state.data?.mode === 'LEAGUE' ? q.state.data.pollSeconds * 1000 : false),
   });
   const { buy, join } = useLeagueEconomy();

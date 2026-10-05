@@ -253,7 +253,6 @@ export const SETTINGS_DEFS = {
 
   // ─────────────── Economía de liga (v2) ───────────────
   economy_v2_new_leagues: { value: true, label: 'Las ligas nuevas usan la economía de liga (mercado compartido)', group: 'Economía de liga', type: 'boolean' },
-  economy_v2_new_teams: { value: true, label: 'Los equipos nuevos juegan la economía de liga (reciben equipo inicial al entrar en una liga)', group: 'Economía de liga', type: 'boolean' },
   v2_initial_budget: { value: 100000, label: 'Presupuesto inicial', group: 'Economía de liga', type: 'moneyk', min: 0, max: 2000000 },
   v2_max_squad: { value: 18, label: 'Máximo de jugadores en plantilla', group: 'Economía de liga', type: 'number', min: 11, max: 30 },
   v2_max_gk: { value: 3, label: 'Máximo de porteros', group: 'Economía de liga', type: 'number', min: 1, max: 6 },

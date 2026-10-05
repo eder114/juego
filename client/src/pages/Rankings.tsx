@@ -80,7 +80,7 @@ export default function Rankings() {
             <p className="label">Tu posición</p>
             <p className="stat-number text-4xl">#{me.rank.toLocaleString('es-ES')}</p>
           </div>
-          {user?.team && <TeamCrest crest={user.team.crest} name={user.team.name} size={44} />}
+          <TeamCrest crest={me.crest} name={me.teamName} size={44} />
           <div className="min-w-0 flex-1">
             <p className="truncate font-semibold text-white">{me.teamName}</p>
             <p className="flex items-center gap-2 text-xs text-slate-400">

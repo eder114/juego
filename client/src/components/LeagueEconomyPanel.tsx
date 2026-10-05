@@ -7,15 +7,14 @@ import { moneyK } from '../lib/format';
 import { useToast } from '../context/ToastContext';
 import { useLeagueEconomy } from '../hooks/useLeagueEconomy';
 import { useEconomyTerms } from '../hooks/usePublicConfig';
-import { Badge, Button, Card, CardHeader, ConfirmModal, Field, Input, Modal } from './ui';
+import { Badge, Button, Card, CardHeader, Field, Input, Modal } from './ui';
 
 export interface LeagueEconomySummary {
   timezone: string;
   resetTime: string;
   startedAt: string;
   pityCounter: number;
-  myStatus: 'NO_TEAM' | 'PLAYING' | 'OTHER_LEAGUE' | 'CLASSIC_SQUAD' | 'CAN_JOIN';
-  otherLeagueName: string | null;
+  myStatus: 'PLAYING' | 'CAN_JOIN';
   participants: { teamId: number; teamName: string; managerName: string; players: number; squadValue: number }[];
 }
 
@@ -25,7 +24,6 @@ export function LeagueEconomyPanel({ leagueId, economy, isMember, canManage }: {
   const terms = useEconomyTerms();
   const qc = useQueryClient();
   const toast = useToast();
-  const [confirmReplace, setConfirmReplace] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [resetTime, setResetTime] = useState(economy.resetTime);
   const [timezone, setTimezone] = useState(economy.timezone);
@@ -68,17 +66,6 @@ export function LeagueEconomyPanel({ leagueId, economy, isMember, canManage }: {
             <Button size="sm" loading={join.isPending} onClick={() => join.mutate({ leagueId })}>Recibir mi equipo</Button>
           </div>
         )}
-        {isMember && economy.myStatus === 'CLASSIC_SQUAD' && (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-400/40 bg-amber-400/[0.07] px-4 py-3">
-            <p className="text-sm text-amber-100">Tu equipo usa el sistema clásico. Para jugar el mercado de esta liga, tu plantilla actual se sustituirá por un equipo inicial (queda guardada en el historial).</p>
-            <Button size="sm" variant="secondary" onClick={() => setConfirmReplace(true)}>Pasar a esta liga</Button>
-          </div>
-        )}
-        {isMember && economy.myStatus === 'OTHER_LEAGUE' && (
-          <p className="rounded-xl bg-white/[0.05] px-4 py-3 text-sm text-slate-300">
-            Tu equipo juega la economía de «{economy.otherLeagueName}». Aquí compites en la clasificación; un equipo solo puede jugar el mercado de una liga.
-          </p>
-        )}
 
         {economy.participants.length > 0 ? (
           <div>
@@ -101,17 +88,6 @@ export function LeagueEconomyPanel({ leagueId, economy, isMember, canManage }: {
         )}
         {economy.pityCounter > 0 && <Badge tone="violet">{economy.pityCounter} día(s) sin jugadores de rareza alta: la probabilidad está aumentando</Badge>}
       </div>
-
-      <ConfirmModal
-        open={confirmReplace}
-        onClose={() => setConfirmReplace(false)}
-        title="Pasar tu equipo a esta liga"
-        danger
-        confirmLabel="Sí, recibir mi equipo inicial"
-        loading={join.isPending}
-        onConfirm={() => join.mutate({ leagueId, confirmReplaceSquad: true }, { onSuccess: () => setConfirmReplace(false) })}
-        message={`Tu plantilla del sistema clásico se sustituirá por ${terms.players} al azar y tendrás ${terms.budget} en el monedero de la liga. Tus puntos y tu historial se conservan. Esta acción no se puede deshacer.`}
-      />
 
       <Modal
         open={scheduleOpen}

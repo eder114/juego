@@ -28,7 +28,7 @@ model User {
   updatedAt      DateTime  @updatedAt
 
   favoriteClub    Club?                @relation(fields: [favoriteClubId], references: [id], onDelete: SetNull)
-  team            FantasyTeam?
+  teams           FantasyTeam[]
   ownedLeagues    League[]             @relation("LeagueOwner")
   memberships     LeagueMember[]
   notifications   Notification[]
@@ -247,16 +247,21 @@ model PlayerStatistic {
 
 // ───────────────────────────── Juego ─────────────────────────────
 
+// Un equipo por usuario Y liga: el mismo mánager tiene plantillas, presupuesto y cartas distintos en cada liga.
 model FantasyTeam {
   id          Int      @id @default(autoincrement())
-  userId      String   @unique
+  userId      String
+  // Liga a la que pertenece el equipo (la liga global para los equipos del sistema clásico).
+  // Opcional en la base de datos solo durante la migración: el arranque la rellena y el código la exige.
+  leagueId    Int?
   name        String
   crest       String   @default("{}") // JSON: {shape, primary, secondary, pattern, initials}
   budget      Int // sistema clásico: décimas de millón
   totalPoints Int      @default(0)
   // Economía: 1 = clásica (mercado libre global), 2 = economía de liga (mercado compartido)
   economyVersion  Int  @default(1)
-  economyLeagueId Int? // liga cuya economía juega el equipo (una "partida")
+  /** @deprecated sustituido por leagueId; se conserva para no perder datos al actualizar */
+  economyLeagueId Int?
   wallet          Int  @default(0) // economía de liga: miles de £
   // Reparto inicial de la partida: JSON {formation, starters[], bench[], assignedAt} y cuándo se vio su presentación
   initialSquad     String?
@@ -265,6 +270,7 @@ model FantasyTeam {
   updatedAt   DateTime @updatedAt
 
   user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  league        League?            @relation("LeagueTeams", fields: [leagueId], references: [id], onDelete: Cascade)
   economyLeague League?            @relation("EconomyLeague", fields: [economyLeagueId], references: [id], onDelete: SetNull)
   players      FantasyTeamPlayer[]
   lineups      Lineup[]
@@ -276,6 +282,7 @@ model FantasyTeam {
   cardActivations  CardActivation[] @relation("CardOwnerTeam")
   cardsReceived    CardActivation[] @relation("CardTargetTeam")
 
+  @@unique([userId, leagueId])
   @@index([economyLeagueId])
 
   @@map("fantasy_teams")
@@ -411,6 +418,7 @@ model League {
   members LeagueMember[]
   invites LeagueInvite[]
   economyTeams     FantasyTeam[]           @relation("EconomyLeague")
+  teams            FantasyTeam[]           @relation("LeagueTeams")
   marketCycles     MarketCycle[]
   playerOwnerships LeaguePlayerOwnership[]
   coachOwnerships  LeagueCoachOwnership[]

@@ -3,12 +3,14 @@ import { api, ApiError, errorMessage } from '../lib/api';
 import { moneyK, signedMoneyK } from '../lib/format';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
+import { useLeague } from '../context/LeagueContext';
 
 /** Acciones de la economía de liga. Tras cada operación se refrescan mercado, plantilla, saldo y alineación. */
 export function useLeagueEconomy() {
   const qc = useQueryClient();
   const toast = useToast();
   const { refresh } = useAuth();
+  const { withLeague } = useLeague();
 
   const invalidate = () => {
     for (const key of ['league-market', 'team', 'dashboard', 'lineup', 'economy-tx', 'league', 'leagues', 'cards']) qc.invalidateQueries({ queryKey: [key] });
@@ -17,6 +19,7 @@ export function useLeagueEconomy() {
 
   const buy = useMutation({
     mutationFn: (listing: { id: number; name: string }) => api.post<{ wallet: number; price: number }>(`/market/league/listings/${listing.id}/buy`),
+    // El anuncio ya determina la liga: no hace falta enviarla
     onSuccess: (res, l) => {
       toast.push('success', `¡${l.name} fichado por ${moneyK(res.price)}! Te quedan ${moneyK(res.wallet)}`);
       invalidate();
@@ -29,7 +32,7 @@ export function useLeagueEconomy() {
   });
 
   const sellPlayer = useMutation({
-    mutationFn: (p: { id: number; displayName: string }) => api.post<{ wallet: number; salePrice: number; profit: number }>(`/market/league/players/${p.id}/sell`),
+    mutationFn: (p: { id: number; displayName: string }) => api.post<{ wallet: number; salePrice: number; profit: number }>(withLeague(`/market/league/players/${p.id}/sell`)),
     onSuccess: (res, p) => {
       toast.push('success', `${p.displayName} vendido por ${moneyK(res.salePrice)} (${signedMoneyK(res.profit)} respecto a su precio de compra)`);
       invalidate();
@@ -38,7 +41,7 @@ export function useLeagueEconomy() {
   });
 
   const sellCoach = useMutation({
-    mutationFn: (c: { id: number; displayName: string }) => api.post<{ wallet: number; salePrice: number }>(`/market/league/coaches/${c.id}/sell`),
+    mutationFn: (c: { id: number; displayName: string }) => api.post<{ wallet: number; salePrice: number }>(withLeague(`/market/league/coaches/${c.id}/sell`)),
     onSuccess: (res, c) => {
       toast.push('success', `${c.displayName} vendido por ${moneyK(res.salePrice)}`);
       invalidate();
@@ -47,7 +50,7 @@ export function useLeagueEconomy() {
   });
 
   const join = useMutation({
-    mutationFn: (v: { leagueId: number; confirmReplaceSquad?: boolean }) => api.post<{ players: number; wallet: number }>(`/leagues/${v.leagueId}/economy/join`, { confirmReplaceSquad: v.confirmReplaceSquad }),
+    mutationFn: (v: { leagueId: number }) => api.post<{ players: number; wallet: number }>(`/leagues/${v.leagueId}/economy/join`),
     onSuccess: (res) => {
       toast.push('success', `¡Equipo listo! Has recibido ${res.players} jugadores y ${moneyK(res.wallet)}`);
       invalidate();

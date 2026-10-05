@@ -7,6 +7,7 @@ import { api, errorMessage } from '../lib/api';
 import { moneyFull, moneyK, POSITION_LABEL } from '../lib/format';
 import type { Player } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { useLeague } from '../context/LeagueContext';
 import { useToast } from '../context/ToastContext';
 import { Button, ErrorState, LoadingBlock } from '../components/ui';
 import { ClubCrest, PlayerPhoto, PositionBadge, TeamCrest } from '../components/sport';
@@ -45,8 +46,10 @@ export default function InitialTeamReveal() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const toast = useToast();
-  const { user, refresh } = useAuth();
-  const leagueId = user?.team?.economyLeague?.id ?? null;
+  const { refresh } = useAuth();
+  const { teams, activeLeagueId, setActiveLeague } = useLeague();
+  // Se presenta el reparto pendiente; si no hay ninguno, el de la liga activa
+  const leagueId = teams.find((t) => t.initialRevealPending)?.leagueId ?? activeLeagueId;
   const [reduced] = useState(prefersReducedMotion);
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
@@ -72,6 +75,8 @@ export default function InitialTeamReveal() {
     onSuccess: async () => {
       qc.invalidateQueries({ queryKey: ['initial-team'] });
       await refresh();
+      // Tras descubrirlo, la aplicación pasa a trabajar con esa liga
+      if (leagueId) setActiveLeague(leagueId);
       navigate('/team', { replace: true });
     },
     onError: (e) => toast.push('error', errorMessage(e)),

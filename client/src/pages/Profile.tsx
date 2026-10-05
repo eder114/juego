@@ -7,6 +7,7 @@ import { api, errorMessage } from '../lib/api';
 import { dateShort } from '../lib/format';
 import type { Club, Crest, Me } from '../types';
 import { useAuth } from '../context/AuthContext';
+import { useLeague } from '../context/LeagueContext';
 import { useToast } from '../context/ToastContext';
 import { Button, Card, CardHeader, Field, Input, LoadingBlock, PageHeader, Select, StatCard, Tabs } from '../components/ui';
 import { Avatar, ClubCrest, TeamCrest } from '../components/sport';
@@ -48,7 +49,12 @@ export default function Profile() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { data: clubs } = useQuery({ queryKey: ['clubs'], queryFn: () => api.get<Club[]>('/clubs') });
-  const stats = useQuery({ queryKey: ['me', 'stats'], queryFn: () => api.get<PersonalStats | null>('/users/me/stats'), enabled: tab === 'stats' });
+  const { activeLeagueId, activeTeam, withLeague } = useLeague();
+  const stats = useQuery({
+    queryKey: ['me', 'stats', activeLeagueId],
+    queryFn: () => api.get<PersonalStats | null>(withLeague('/users/me/stats')),
+    enabled: tab === 'stats',
+  });
   const achievements = useQuery({ queryKey: ['me', 'achievements'], queryFn: () => api.get<{ code: string; title: string; description: string; icon: string; unlockedAt: string | null }[]>('/users/me/achievements'), enabled: tab === 'achievements' });
 
   const [managerName, setManagerName] = useState(user?.managerName ?? '');
@@ -127,12 +133,14 @@ export default function Profile() {
             </button>
           )}
         </div>
-        {user.team && (
+        {activeTeam && (
           <div className="flex items-center gap-3 rounded-2xl border border-white/[0.06] bg-ink-900/50 p-3">
-            <TeamCrest crest={user.team.crest} name={user.team.name} size={54} />
+            <TeamCrest crest={activeTeam.crest} name={activeTeam.name} size={54} />
             <div>
-              <p className="font-display text-xl font-bold uppercase text-white">{user.team.name}</p>
-              <p className="text-sm text-slate-400">{user.team.totalPoints} puntos</p>
+              <p className="font-display text-xl font-bold uppercase text-white">{activeTeam.name}</p>
+              <p className="text-sm text-slate-400">
+                {activeTeam.totalPoints} puntos · {activeTeam.league?.type === 'GLOBAL' ? 'Liga global' : (activeTeam.league?.name ?? 'Sin liga')}
+              </p>
             </div>
           </div>
         )}

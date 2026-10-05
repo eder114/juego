@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useAuth } from '../../context/AuthContext';
+import { useLeague } from '../../context/LeagueContext';
 import { api } from '../../lib/api';
 import { initials, money, moneyK, relativeTime } from '../../lib/format';
 import { usePublicConfig } from '../../hooks/usePublicConfig';
@@ -148,6 +149,7 @@ function NotificationBell() {
 
 export default function AppLayout() {
   const { user, logout } = useAuth();
+  const { activeLeagueId, activeTeam, teams, setActiveLeague } = useLeague();
   const { data: config } = usePublicConfig();
   const [moreOpen, setMoreOpen] = useState(false);
   const location = useLocation();
@@ -157,11 +159,11 @@ export default function AppLayout() {
     window.scrollTo({ top: 0 });
   }, [location.pathname]);
 
-  // Equipo inicial recién repartido: se presenta una sola vez antes de seguir navegando
-  const revealPending = user?.team?.initialRevealPending;
+  // Equipo inicial recién repartido en alguna liga: se presenta una sola vez antes de seguir navegando
+  const pendingReveal = teams.find((t) => t.initialRevealPending);
   useEffect(() => {
-    if (revealPending && location.pathname !== REVEAL_PATH) navigate(REVEAL_PATH, { replace: true });
-  }, [revealPending, location.pathname, navigate]);
+    if (pendingReveal && location.pathname !== REVEAL_PATH) navigate(REVEAL_PATH, { replace: true });
+  }, [pendingReveal, location.pathname, navigate]);
 
   const doLogout = () => {
     logout();
@@ -197,6 +199,24 @@ export default function AppLayout() {
             </NavLink>
           ))}
         </nav>
+        {teams.length > 1 && (
+          <div className="mx-5 mb-3">
+            <label className="block">
+              <span className="label mb-1 block text-white/80">Liga activa</span>
+              <select
+                value={activeLeagueId ?? ''}
+                onChange={(e) => setActiveLeague(Number(e.target.value))}
+                className="h-10 w-full truncate rounded-xl border border-white/25 bg-white/[0.12] px-3 text-sm font-semibold text-white focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pitch-400"
+              >
+                {teams.map((t) => (
+                  <option key={t.id} value={t.leagueId ?? ''} className="bg-ink-800">
+                    {t.league?.type === 'GLOBAL' ? 'Liga global' : (t.league?.name ?? t.name)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        )}
         {user && (
           <div className="mx-5 mb-5 flex items-center gap-2 rounded-2xl border-l-[3px] border-white/25 bg-white/[0.12] py-3 pl-3 pr-2">
             <Link to="/profile" className="flex min-w-0 flex-1 items-center gap-3" title="Mi perfil">
@@ -206,7 +226,7 @@ export default function AppLayout() {
                 <span aria-hidden className="size-10 shrink-0 rounded-full bg-[radial-gradient(circle_at_35%_30%,#7dfcc4_0%,#12c77f_45%,#0b3d4a_100%)] shadow-[0_0_16px_-4px_rgb(3_255_136/0.8)]" />
               )}
               <span className="min-w-0">
-                <span className="block truncate font-display text-lg font-bold uppercase leading-tight text-white">{user.team?.name ?? user.managerName}</span>
+                <span className="block truncate font-display text-lg font-bold uppercase leading-tight text-white">{activeTeam?.name ?? user.managerName}</span>
                 <span className="block truncate text-sm font-medium uppercase text-lime-glow">{user.managerName}</span>
               </span>
             </Link>
@@ -228,14 +248,31 @@ export default function AppLayout() {
             <span className="text-sm text-white/80">Premier League</span>
           </p>
           <div className="flex items-center gap-2 sm:gap-3">
-            {user?.team && (
+            {teams.length > 1 && (
+              <label className="hidden items-center gap-2 sm:flex">
+                <span className="sr-only">Liga activa</span>
+                <select
+                  value={activeLeagueId ?? ''}
+                  onChange={(e) => setActiveLeague(Number(e.target.value))}
+                  title="Cada liga tiene su propio equipo"
+                  className="h-10 max-w-44 truncate rounded-lg border border-white/15 bg-[#101d25]/90 px-3 text-sm font-semibold text-white transition hover:bg-[#15272f] focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pitch-400"
+                >
+                  {teams.map((t) => (
+                    <option key={t.id} value={t.leagueId ?? ''} className="bg-ink-800">
+                      {t.league?.type === 'GLOBAL' ? 'Liga global' : (t.league?.name ?? t.name)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            {activeTeam && (
               <Link
-                to={user.team.economyVersion === 2 ? '/economy' : '/team'}
-                title={user.team.economyLeague ? `Presupuesto en «${user.team.economyLeague.name}»` : 'Presupuesto disponible'}
+                to={activeTeam.economyVersion === 2 ? '/economy' : '/team'}
+                title={activeTeam.league ? `Presupuesto en «${activeTeam.league.name}»` : 'Presupuesto disponible'}
                 className="hidden h-10 items-center gap-2.5 rounded-lg bg-[#101d25]/90 px-4 text-sm shadow-[0_6px_18px_-8px_rgb(0_0_0/0.6)] transition hover:bg-[#15272f] sm:flex"
               >
                 <Wallet aria-hidden className="size-4 text-white/80" />
-                <span className="font-bold tabular-nums text-white">{user.team.economyVersion === 2 ? moneyK(user.team.wallet) : money(user.team.budget)}</span>
+                <span className="font-bold tabular-nums text-white">{activeTeam.economyVersion === 2 ? moneyK(activeTeam.wallet) : money(activeTeam.budget)}</span>
               </Link>
             )}
             <NotificationBell />
@@ -280,6 +317,22 @@ export default function AppLayout() {
                 <X className="size-5" />
               </button>
             </div>
+            {teams.length > 1 && (
+              <label className="mb-3 block">
+                <span className="label mb-1 block text-slate-400">Liga activa</span>
+                <select
+                  value={activeLeagueId ?? ''}
+                  onChange={(e) => setActiveLeague(Number(e.target.value))}
+                  className="h-11 w-full truncate rounded-2xl border border-white/[0.08] bg-white/[0.04] px-3 text-sm font-semibold text-white focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pitch-400"
+                >
+                  {teams.map((t) => (
+                    <option key={t.id} value={t.leagueId ?? ''} className="bg-ink-800">
+                      {t.league?.type === 'GLOBAL' ? 'Liga global' : (t.league?.name ?? t.name)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <div className="grid grid-cols-3 gap-2">
               {[...navItems, { to: '/profile', label: 'Perfil', icon: User }].map(({ to, label, icon: Icon }) => (
                 <NavLink key={to} to={to} className={({ isActive }) => clsx('flex flex-col items-center gap-2 rounded-2xl border p-3 text-center text-xs font-semibold', isActive ? 'border-pitch-500/40 bg-pitch-500/10 text-pitch-300' : 'border-white/[0.06] bg-white/[0.03] text-slate-300')}>

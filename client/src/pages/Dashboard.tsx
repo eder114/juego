@@ -4,6 +4,7 @@ import { CircleDollarSign, CreditCard, Menu as ListIcon, Target, TrendingUp } fr
 import { api } from '../lib/api';
 import { money, moneyK } from '../lib/format';
 import { useAuth } from '../context/AuthContext';
+import { useLeague } from '../context/LeagueContext';
 import { StatCard } from '../components/ui';
 import { MovementIndicator } from '../components/sport';
 import { DashEmpty, DashError } from '../components/dashboard/DashCard';
@@ -15,7 +16,12 @@ import type { DashboardData } from '../components/dashboard/types';
 /** Inicio del área privada (referencia visual: design/dashboard.webp). Todos los datos vienen de GET /api/dashboard. */
 export default function Dashboard() {
   const { user } = useAuth();
-  const { data, isLoading, error, refetch, isRefetching } = useQuery({ queryKey: ['dashboard'], queryFn: () => api.get<DashboardData>('/dashboard') });
+  // Cada liga tiene su propio equipo: el resumen es el de la liga activa
+  const { activeLeagueId, withLeague } = useLeague();
+  const { data, isLoading, error, refetch, isRefetching } = useQuery({
+    queryKey: ['dashboard', activeLeagueId],
+    queryFn: () => api.get<DashboardData>(withLeague('/dashboard')),
+  });
 
   if (isLoading) return <DashboardSkeleton />;
   // Si falla una recarga en segundo plano se siguen mostrando los últimos datos válidos

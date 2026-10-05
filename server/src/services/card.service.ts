@@ -8,6 +8,7 @@ import { getGameweekContext } from './gameweek.service';
 import { aggFor, getPlayerAggregates, toPlayerDTO } from './player-stats.service';
 import { notify, notifyMany, type NotificationInput } from './notification.service';
 import { isUniqueViolation } from './economy.service';
+import { resolveTeam } from './team.service';
 
 /**
  * Cartas potenciadoras
@@ -49,14 +50,13 @@ async function cardGameweek() {
   return next;
 }
 
-async function teamOf(userId: string) {
-  const team = await prisma.fantasyTeam.findUnique({ where: { userId } });
-  if (!team) throw notFound('Aún no has creado tu equipo Fantasy');
-  return team;
+/** Equipo del usuario en la liga activa: las cartas y sus activaciones son propias de cada liga. */
+async function teamOf(userId: string, leagueId?: number | null) {
+  return resolveTeam(userId, leagueId);
 }
 
-export async function getCards(userId: string) {
-  const team = await teamOf(userId);
+export async function getCards(userId: string, leagueId?: number | null) {
+  const team = await teamOf(userId, leagueId);
   const gw = await cardGameweek();
   const [inventory, activations, received, catalog] = await Promise.all([
     prisma.teamCard.findMany({ where: { teamId: team.id }, include: { card: true }, orderBy: { acquiredAt: 'desc' } }),
@@ -104,35 +104,30 @@ function publicCard(c: { id: number; code: string; name: string; description: st
   return { id: c.id, code: c.code, name: c.name, description: c.description, effect: c.effect, rarity: c.rarity, effectValue: c.effectValue, target: c.target, isActive: c.isActive, obtainable: c.obtainable, maxPerGameweek: c.maxPerGameweek };
 }
 
-/** Rivales a los que se puede aplicar una carta de presión: equipos con los que compartes una liga (sin contar la global). */
-export async function rivalTargets(userId: string) {
-  const team = await teamOf(userId);
-  const leagues = await prisma.leagueMember.findMany({ where: { userId, league: { type: { not: 'GLOBAL' } } }, select: { leagueId: true, league: { select: { name: true } } } });
-  const members = await prisma.leagueMember.findMany({
-    where: { leagueId: { in: leagues.map((l) => l.leagueId) }, userId: { not: userId } },
-    select: { leagueId: true, user: { select: { managerName: true, team: { select: { id: true, name: true, crest: true } } } } },
+/** Rivales de la carta de presión: los demás equipos de la misma liga que el equipo que la usa. */
+export async function rivalTargets(userId: string, leagueId?: number | null) {
+  const team = await teamOf(userId, leagueId);
+  if (!team.leagueId || team.league?.type === 'GLOBAL') return [];
+  const rivals = await prisma.fantasyTeam.findMany({
+    where: { leagueId: team.leagueId, id: { not: team.id } },
+    select: { id: true, name: true, crest: true, user: { select: { managerName: true } }, league: { select: { name: true } } },
+    orderBy: { name: 'asc' },
   });
-  const byTeam = new Map<number, { teamId: number; teamName: string; managerName: string; crest: unknown; leagues: string[] }>();
-  for (const m of members) {
-    const t = m.user.team;
-    if (!t || t.id === team.id) continue;
-    const entry = byTeam.get(t.id) ?? { teamId: t.id, teamName: t.name, managerName: m.user.managerName, crest: parseCrest(t.crest), leagues: [] as string[] };
-    entry.leagues.push(leagues.find((l) => l.leagueId === m.leagueId)!.league.name);
-    byTeam.set(t.id, entry);
-  }
-  return [...byTeam.values()].sort((a, b) => a.teamName.localeCompare(b.teamName));
+  return rivals.map((r) => ({ teamId: r.id, teamName: r.name, managerName: r.user.managerName, crest: parseCrest(r.crest), leagues: [r.league?.name ?? ''] }));
 }
 
-async function sharesLeague(userA: string, teamIdB: number) {
-  const b = await prisma.fantasyTeam.findUnique({ where: { id: teamIdB }, select: { userId: true } });
-  if (!b) return false;
-  const shared = await prisma.leagueMember.count({ where: { userId: userA, league: { type: { not: 'GLOBAL' }, members: { some: { userId: b.userId } } } } });
-  return shared > 0;
+/** Dos equipos son rivales si pertenecen a la misma liga (y no es la global). */
+async function sameLeague(teamIdA: number, teamIdB: number) {
+  const [a, b] = await Promise.all([
+    prisma.fantasyTeam.findUnique({ where: { id: teamIdA }, include: { league: true } }),
+    prisma.fantasyTeam.findUnique({ where: { id: teamIdB }, select: { leagueId: true } }),
+  ]);
+  return !!a?.leagueId && a.league?.type !== 'GLOBAL' && a.leagueId === b?.leagueId;
 }
 
-export async function targetSquad(userId: string, teamId: number) {
-  const own = await teamOf(userId);
-  if (teamId !== own.id && !(await sharesLeague(userId, teamId))) throw forbidden('Solo puedes elegir jugadores de rivales de tus ligas');
+export async function targetSquad(userId: string, teamId: number, leagueId?: number | null) {
+  const own = await teamOf(userId, leagueId);
+  if (teamId !== own.id && !(await sameLeague(own.id, teamId))) throw forbidden('Solo puedes elegir jugadores de rivales de tu liga');
   const [entries, { map }] = await Promise.all([
     prisma.fantasyTeamPlayer.findMany({ where: { teamId }, include: { player: { select: playerSelect } } }),
     getPlayerAggregates(),
@@ -147,9 +142,9 @@ export interface ActivateInput {
   requestId: string;
 }
 
-export async function activateCard(userId: string, input: ActivateInput) {
+export async function activateCard(userId: string, input: ActivateInput, leagueId?: number | null) {
   const s = await getSettings();
-  const team = await teamOf(userId);
+  const team = await teamOf(userId, leagueId);
 
   // Idempotencia: el mismo requestId devuelve la activación ya creada
   const previous = await prisma.cardActivation.findUnique({ where: { requestId: input.requestId } });
@@ -173,7 +168,7 @@ export async function activateCard(userId: string, input: ActivateInput) {
     if (!inSquad) throw badRequest('Elige un jugador de tu plantilla');
   } else {
     if (!input.targetTeamId || input.targetTeamId === team.id) throw badRequest('Elige un equipo rival');
-    if (!(await sharesLeague(userId, input.targetTeamId))) throw forbidden('Solo puedes usar esta carta contra rivales de tus ligas');
+    if (!(await sameLeague(team.id, input.targetTeamId))) throw forbidden('Solo puedes usar esta carta contra rivales de tu liga');
     const inSquad = await prisma.fantasyTeamPlayer.findUnique({ where: { teamId_playerId: { teamId: input.targetTeamId, playerId: input.targetPlayerId } } });
     if (!inSquad) throw badRequest('Ese jugador no está en la plantilla del rival');
     targetTeamId = input.targetTeamId;
@@ -223,8 +218,8 @@ export async function activateCard(userId: string, input: ActivateInput) {
   }
 }
 
-export async function cancelActivation(userId: string, activationId: number) {
-  const team = await teamOf(userId);
+export async function cancelActivation(userId: string, activationId: number, leagueId?: number | null) {
+  const team = await teamOf(userId, leagueId);
   const activation = await prisma.cardActivation.findUnique({ where: { id: activationId }, include: { card: true } });
   if (!activation || activation.teamId !== team.id) throw notFound('Activación no encontrada');
   const gw = await prisma.gameweek.findUnique({ where: { id: activation.gameweekId } });

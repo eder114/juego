@@ -17,6 +17,7 @@ import { aggFor, getPlayerAggregates, toPlayerDTO } from './player-stats.service
 import { applyCardModifiers } from '../domain/economy';
 import { cardModifiersForGameweek } from './card.service';
 import { coachPointsByClub } from './valuation.service';
+import { resolveTeam } from './team.service';
 
 async function loadSquad(teamId: number) {
   const [entries, { map }] = await Promise.all([
@@ -107,9 +108,8 @@ export async function ensureLineup(teamId: number, gameweekId: number) {
   return persistLineup(teamId, gameweekId, draft);
 }
 
-export async function getLineupView(userId: string, gameweekId?: number) {
-  const team = await prisma.fantasyTeam.findUnique({ where: { userId } });
-  if (!team) throw notFound('Aún no has creado tu equipo Fantasy');
+export async function getLineupView(userId: string, gameweekId?: number, leagueId?: number | null) {
+  const team = await resolveTeam(userId, leagueId);
   const gw = gameweekId ? await prisma.gameweek.findUnique({ where: { id: gameweekId } }) : await getEditableGameweek();
   if (!gw) throw notFound('Jornada no encontrada');
   return buildLineupView(team.id, gw.id, true);
@@ -288,9 +288,8 @@ export interface SaveLineupInput {
   viceCaptainId: number | null;
 }
 
-export async function saveLineup(userId: string, gameweekId: number, input: SaveLineupInput) {
-  const team = await prisma.fantasyTeam.findUnique({ where: { userId } });
-  if (!team) throw notFound('Aún no has creado tu equipo Fantasy');
+export async function saveLineup(userId: string, gameweekId: number, input: SaveLineupInput, leagueId?: number | null) {
+  const team = await resolveTeam(userId, leagueId);
   const locks = await getGameweekLocks(gameweekId);
   if (!locks) throw notFound('Jornada no encontrada');
   if (locks.gameweek.isProcessed || locks.allLocked) throw badRequest(`La ${locks.gameweek.name} está cerrada: ya no se pueden hacer cambios`);

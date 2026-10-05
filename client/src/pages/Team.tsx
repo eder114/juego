@@ -10,6 +10,7 @@ import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 import { useTransferActions } from '../hooks/useTransferActions';
 import { useLeagueEconomy } from '../hooks/useLeagueEconomy';
+import { useLeague } from '../context/LeagueContext';
 import { useEconomyTerms } from '../hooks/usePublicConfig';
 import { CoachPhoto, RarityBadge, ValueTrendBadge } from '../components/economy';
 import { Badge, Button, Card, ConfirmModal, EmptyState, ErrorState, Field, Input, LoadingBlock, Modal, PageHeader, ProgressBar, StatCard, Tabs } from '../components/ui';
@@ -25,8 +26,13 @@ export default function Team() {
   const [tab, setTab] = useState<'squad' | 'transfers' | 'money'>('squad');
   const [editOpen, setEditOpen] = useState(false);
   const [selling, setSelling] = useState<Squad['players'][number] | null>(null);
-  const { data, isLoading, error, refetch } = useQuery({ queryKey: ['team'], queryFn: () => api.get<Squad>('/team') });
-  const history = useQuery({ queryKey: ['team', 'transfers'], queryFn: () => api.get<TransferHistory>('/team/transfers'), enabled: tab !== 'squad' });
+  const { activeLeagueId, withLeague } = useLeague();
+  const { data, isLoading, error, refetch } = useQuery({ queryKey: ['team', activeLeagueId], queryFn: () => api.get<Squad>(withLeague('/team')) });
+  const history = useQuery({
+    queryKey: ['team', activeLeagueId, 'transfers'],
+    queryFn: () => api.get<TransferHistory>(withLeague('/team/transfers')),
+    enabled: tab !== 'squad',
+  });
   const { sell } = useTransferActions();
   const { sellPlayer, sellCoach } = useLeagueEconomy();
   const terms = useEconomyTerms();
@@ -358,8 +364,9 @@ function EditTeamModal({ open, onClose, name, crest }: { open: boolean; onClose:
   const qc = useQueryClient();
   const toast = useToast();
   const { refresh } = useAuth();
+  const { withLeague } = useLeague();
   const save = useMutation({
-    mutationFn: () => api.patch('/team', { name: teamName, crest: { shape: 'shield', pattern: 'plain', primary: '#16a34a', secondary: '#0f172a', initials: '', ...value } }),
+    mutationFn: () => api.patch(withLeague('/team'), { name: teamName, crest: { shape: 'shield', pattern: 'plain', primary: '#16a34a', secondary: '#0f172a', initials: '', ...value } }),
     onSuccess: () => {
       toast.push('success', 'Equipo actualizado');
       qc.invalidateQueries({ queryKey: ['team'] });

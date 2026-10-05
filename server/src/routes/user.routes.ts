@@ -9,7 +9,8 @@ import { requireAuth } from '../middleware/auth';
 import { ACHIEVEMENTS } from '../services/achievement.service';
 import { getUserGlobalPosition } from '../services/ranking.service';
 import { getMe } from '../services/auth.service';
-import { managerNameSchema } from './validators';
+import { leagueQuery, managerNameSchema } from './validators';
+import { findTeam } from '../services/team.service';
 
 const ALLOWED_MIME = new Set(['image/png', 'image/jpeg', 'image/webp']);
 // La imagen se guarda en la BD (el cliente la reduce antes de subirla)
@@ -79,7 +80,8 @@ userRouter.get('/users/me/achievements', async (req, res) => {
 
 /** Estadísticas personales del mánager. */
 userRouter.get('/users/me/stats', async (req, res) => {
-  const team = await prisma.fantasyTeam.findUnique({ where: { userId: req.user!.id } });
+  const { league } = parse(leagueQuery, req.query);
+  const team = await findTeam(req.user!.id, league);
   if (!team) {
     res.json(null);
     return;
@@ -112,10 +114,18 @@ userRouter.get('/users/:id', async (req, res) => {
   const id = parse(z.string().min(10).max(40), req.params.id);
   const user = await prisma.user.findUnique({
     where: { id },
-    select: { ...userPublicSelect, createdAt: true, favoriteClub: { select: clubLiteSelect }, team: { select: { id: true, name: true, crest: true, totalPoints: true } }, achievements: true },
+    select: {
+      ...userPublicSelect,
+      createdAt: true,
+      favoriteClub: { select: clubLiteSelect },
+      // Perfil público: su equipo de la liga global
+      teams: { where: { league: { type: 'GLOBAL' } }, take: 1, select: { id: true, name: true, crest: true, totalPoints: true } },
+      achievements: true,
+    },
   });
   if (!user) throw notFound('Mánager no encontrado');
-  res.json({ ...user, team: user.team ? { ...user.team, crest: parseCrest(user.team.crest) } : null });
+  const team = user.teams[0] ?? null;
+  res.json({ ...user, teams: undefined, team: team ? { ...team, crest: parseCrest(team.crest) } : null });
 });
 
 // ─────────────── Notificaciones ───────────────

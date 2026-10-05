@@ -10,6 +10,10 @@ import { listTransactions } from '../services/economy.service';
 import { valuationHistory } from '../services/valuation.service';
 import { getTeamByUser } from '../services/squad.service';
 import { requireLeagueAdmin } from '../services/league.service';
+import { leagueQuery } from './validators';
+
+/** Liga activa de la petición: ?league=<id>. */
+const activeLeague = (req: { query: unknown }) => parse(leagueQuery, req.query).league;
 
 /** Economía de liga: mercado compartido, cartas, desafíos diarios y movimientos. */
 export const economyRouter = Router();
@@ -27,7 +31,7 @@ const actionLimiter = rateLimit({
 
 // ─────────────── Mercado de la liga ───────────────
 economyRouter.get('/market/league', async (req, res) => {
-  res.json(await market.getMarketView(req.user!.id));
+  res.json(await market.getMarketView(req.user!.id, activeLeague(req)));
 });
 
 economyRouter.post('/market/league/listings/:listingId/buy', actionLimiter, async (req, res) => {
@@ -35,16 +39,15 @@ economyRouter.post('/market/league/listings/:listingId/buy', actionLimiter, asyn
 });
 
 economyRouter.post('/market/league/players/:playerId/sell', actionLimiter, async (req, res) => {
-  res.json(await market.sellPlayerV2(req.user!.id, intParam(req.params.playerId, 'playerId')));
+  res.json(await market.sellPlayerV2(req.user!.id, intParam(req.params.playerId, 'playerId'), activeLeague(req)));
 });
 
 economyRouter.post('/market/league/coaches/:coachId/sell', actionLimiter, async (req, res) => {
-  res.json(await market.sellCoach(req.user!.id, intParam(req.params.coachId, 'coachId')));
+  res.json(await market.sellCoach(req.user!.id, intParam(req.params.coachId, 'coachId'), activeLeague(req)));
 });
 
 economyRouter.post('/leagues/:id/economy/join', actionLimiter, async (req, res) => {
-  const body = parse(z.object({ confirmReplaceSquad: z.boolean().optional() }), req.body ?? {});
-  res.status(201).json(await market.joinEconomy(req.user!.id, intParam(req.params.id), body));
+  res.status(201).json(await market.joinEconomy(req.user!.id, intParam(req.params.id)));
 });
 
 economyRouter.get('/leagues/:id/initial-team', async (req, res) => {
@@ -65,7 +68,7 @@ economyRouter.patch('/leagues/:id/economy/schedule', async (req, res) => {
 // ─────────────── Movimientos económicos y valores ───────────────
 economyRouter.get('/economy/transactions', async (req, res) => {
   const q = parse(z.object({ cursor: z.coerce.number().int().positive().optional(), take: z.coerce.number().int().min(1).max(100).optional() }), req.query);
-  const team = await getTeamByUser(req.user!.id);
+  const team = await getTeamByUser(req.user!.id, activeLeague(req));
   res.json({ economyVersion: team.economyVersion, wallet: team.wallet, budget: team.budget, ...(await listTransactions(team.id, q)) });
 });
 
@@ -75,15 +78,15 @@ economyRouter.get('/players/:id/valuations', async (req, res) => {
 
 // ─────────────── Cartas ───────────────
 economyRouter.get('/cards', async (req, res) => {
-  res.json(await cards.getCards(req.user!.id));
+  res.json(await cards.getCards(req.user!.id, activeLeague(req)));
 });
 
 economyRouter.get('/cards/rivals', async (req, res) => {
-  res.json(await cards.rivalTargets(req.user!.id));
+  res.json(await cards.rivalTargets(req.user!.id, activeLeague(req)));
 });
 
 economyRouter.get('/cards/teams/:teamId/players', async (req, res) => {
-  res.json(await cards.targetSquad(req.user!.id, intParam(req.params.teamId, 'teamId')));
+  res.json(await cards.targetSquad(req.user!.id, intParam(req.params.teamId, 'teamId'), activeLeague(req)));
 });
 
 economyRouter.post('/cards/activate', actionLimiter, async (req, res) => {
@@ -96,20 +99,20 @@ economyRouter.post('/cards/activate', actionLimiter, async (req, res) => {
     }),
     req.body,
   );
-  res.status(201).json(await cards.activateCard(req.user!.id, body));
+  res.status(201).json(await cards.activateCard(req.user!.id, body, activeLeague(req)));
 });
 
 economyRouter.post('/cards/activations/:id/cancel', actionLimiter, async (req, res) => {
-  res.json(await cards.cancelActivation(req.user!.id, intParam(req.params.id)));
+  res.json(await cards.cancelActivation(req.user!.id, intParam(req.params.id), activeLeague(req)));
 });
 
 // ─────────────── Desafíos diarios ───────────────
 economyRouter.get('/challenges', async (req, res) => {
-  const [wordle, history] = await Promise.all([challenges.getWordleState(req.user!.id), challenges.challengeHistory(req.user!.id)]);
+  const [wordle, history] = await Promise.all([challenges.getWordleState(req.user!.id, activeLeague(req)), challenges.challengeHistory(req.user!.id)]);
   res.json({ wordle, history });
 });
 
 economyRouter.post('/challenges/wordle/guess', actionLimiter, async (req, res) => {
-  const body = parse(z.object({ guess: z.string().trim().min(1).max(12) }), req.body);
-  res.json(await challenges.submitWordleGuess(req.user!.id, body.guess));
+  const body = parse(z.object({ guess: z.string().trim().min(1).max(12), league: z.number().int().positive().optional() }), req.body);
+  res.json(await challenges.submitWordleGuess(req.user!.id, body.guess, body.league ?? activeLeague(req)));
 });

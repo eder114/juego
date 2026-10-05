@@ -5,6 +5,7 @@ import { api } from '../lib/api';
 import { dateTime, money, moneyFull, moneyIn, moneyK, TX_LABEL } from '../lib/format';
 import type { EconomyTransaction } from '../types';
 import { Badge, Button, Card, EmptyState, ErrorState, LoadingBlock, PageHeader, StatCard } from '../components/ui';
+import { useLeague } from '../context/LeagueContext';
 
 interface TxPage {
   economyVersion: 1 | 2;
@@ -16,9 +17,10 @@ interface TxPage {
 
 /** Historial económico auditable: cada movimiento con saldo anterior y posterior. */
 export default function Economy() {
+  const { activeLeagueId, withLeague } = useLeague();
   const { data, isLoading, error, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
-    queryKey: ['economy-tx'],
-    queryFn: ({ pageParam }) => api.get<TxPage>(`/economy/transactions${pageParam ? `?cursor=${pageParam}` : ''}`),
+    queryKey: ['economy-tx', activeLeagueId],
+    queryFn: ({ pageParam }) => api.get<TxPage>(withLeague(`/economy/transactions${pageParam ? `?cursor=${pageParam}` : ''}`)),
     initialPageParam: 0,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
   });

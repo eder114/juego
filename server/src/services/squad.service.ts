@@ -6,14 +6,14 @@ import { getGameweekContext, getGameweekLocks } from './gameweek.service';
 import { aggFor, getPlayerAggregates, invalidatePlayerAggregates, toPlayerDTO } from './player-stats.service';
 import { ensureLineup } from './lineup.service';
 import { evaluateMarketAchievements } from './achievement.service';
+import { createTeamForLeague, getGlobalLeagueId, resolveTeam } from './team.service';
 import type { Position } from '../domain/constants';
 
 export const formatMoney = (tenths: number) => `£${(tenths / 10).toFixed(1)}M`;
 
-export async function getTeamByUser(userId: string) {
-  const team = await prisma.fantasyTeam.findUnique({ where: { userId } });
-  if (!team) throw notFound('Aún no has creado tu equipo Fantasy');
-  return team;
+/** Equipo del usuario en la liga indicada (sin liga, su equipo por defecto). */
+export async function getTeamByUser(userId: string, leagueId?: number | null) {
+  return resolveTeam(userId, leagueId);
 }
 
 /** El mercado libre clásico solo está disponible para equipos del sistema antiguo. */
@@ -21,49 +21,53 @@ function assertClassicEconomy(team: { economyVersion: number }) {
   if (team.economyVersion === 2) throw badRequest('Tu equipo juega la economía de liga: ficha y vende desde el mercado de tu liga');
 }
 
+/**
+  * Equipo del usuario en la liga global (el del registro). Los equipos de las demás ligas se crean
+  * al entrar en ellas, cada uno con su plantilla y su presupuesto.
+  */
 export async function createTeam(userId: string, data: { name: string; crest?: object }) {
-  const existing = await prisma.fantasyTeam.findUnique({ where: { userId } });
+  const globalId = await getGlobalLeagueId();
+  const existing = await prisma.fantasyTeam.findFirst({ where: { userId, leagueId: globalId } });
   if (existing) throw conflict('Ya tienes un equipo Fantasy');
   const settings = await getSettings();
-  // Economía de liga: el equipo recibe su plantilla inicial y su presupuesto al entrar en la economía de una liga
-  const v2 = settings.economy_v2_new_teams;
-  const team = await prisma.$transaction(async (tx) => {
-    const t = await tx.fantasyTeam.create({
-      data: { userId, name: data.name, crest: JSON.stringify(data.crest ?? {}), budget: v2 ? 0 : settings.initial_budget, economyVersion: v2 ? 2 : 1 },
+  // El equipo de la liga global usa el sistema clásico; cada liga con economía crea el suyo al entrar
+  return prisma.$transaction(async (tx) => {
+    await tx.leagueMember.upsert({
+      where: { leagueId_userId: { leagueId: globalId, userId } },
+      create: { leagueId: globalId, userId },
+      update: {},
     });
-    if (!v2)
-      await tx.transaction.create({
-        data: {
-          teamId: t.id,
-          type: 'INITIAL_BUDGET',
-          amount: settings.initial_budget,
-          balanceAfter: settings.initial_budget,
-          description: `Presupuesto inicial de temporada ${settings.season}`,
-        },
-      });
-    const global = await tx.league.findFirst({ where: { type: 'GLOBAL', isSystem: true } });
-    if (global) {
-      await tx.leagueMember.upsert({
-        where: { leagueId_userId: { leagueId: global.id, userId } },
-        create: { leagueId: global.id, userId },
-        update: {},
-      });
-    }
+    const t = await createTeamForLeague(tx, {
+      userId,
+      leagueId: globalId,
+      name: data.name,
+      crest: JSON.stringify(data.crest ?? {}),
+      economyVersion: 1,
+      budget: settings.initial_budget,
+    });
+    await tx.transaction.create({
+      data: {
+        teamId: t.id,
+        type: 'INITIAL_BUDGET',
+        amount: settings.initial_budget,
+        balanceAfter: settings.initial_budget,
+        description: `Presupuesto inicial de temporada ${settings.season}`,
+      },
+    });
     return t;
   });
-  return team;
 }
 
-export async function updateTeam(userId: string, data: { name?: string; crest?: object }) {
-  const team = await getTeamByUser(userId);
+export async function updateTeam(userId: string, data: { name?: string; crest?: object }, leagueId?: number | null) {
+  const team = await getTeamByUser(userId, leagueId);
   return prisma.fantasyTeam.update({
     where: { id: team.id },
     data: { name: data.name, crest: data.crest ? JSON.stringify(data.crest) : undefined },
   });
 }
 
-export async function getSquad(userId: string) {
-  const team = await getTeamByUser(userId);
+export async function getSquad(userId: string, leagueId?: number | null) {
+  const team = await getTeamByUser(userId, leagueId);
   const settings = await getSettings();
   const [entries, { map }] = await Promise.all([
     prisma.fantasyTeamPlayer.findMany({
@@ -110,12 +114,12 @@ export async function getSquad(userId: string) {
 
 /** Datos de la economía de liga para «Mi equipo»: monedero, valores (k£), precio de compra/venta y entrenador. */
 async function economySquadDetails(
-  team: { id: number; wallet: number; economyLeagueId: number | null },
+  team: { id: number; wallet: number; leagueId: number | null },
   players: { id: number; marketValue: number | null; position: string }[],
   settings: Awaited<ReturnType<typeof getSettings>>,
 ) {
   const [league, ownerships, coach, trends] = await Promise.all([
-    team.economyLeagueId ? prisma.league.findUnique({ where: { id: team.economyLeagueId }, select: { id: true, name: true } }) : null,
+    team.leagueId ? prisma.league.findUnique({ where: { id: team.leagueId }, select: { id: true, name: true } }) : null,
     prisma.leaguePlayerOwnership.findMany({ where: { teamId: team.id }, select: { playerId: true, purchasePrice: true, source: true, acquiredAt: true } }),
     prisma.leagueCoachOwnership.findFirst({ where: { teamId: team.id }, include: { coach: { include: { club: { select: { id: true, name: true, shortName: true, crestUrl: true, primaryColor: true, secondaryColor: true, commonName: true, stadium: true } } } } } }),
     prisma.playerValuation.findMany({ where: { playerId: { in: players.map((p) => p.id) }, reason: 'PERFORMANCE' }, orderBy: { createdAt: 'desc' }, select: { playerId: true, change: true, variationBp: true } }),
@@ -169,10 +173,10 @@ export async function snapshotCurrentLineup(teamId: number) {
   return locks;
 }
 
-export async function buyPlayer(userId: string, playerId: number) {
+export async function buyPlayer(userId: string, playerId: number, leagueId?: number | null) {
   const settings = await getSettings();
   if (!settings.market_open) throw badRequest('El mercado está cerrado');
-  const team = await getTeamByUser(userId);
+  const team = await getTeamByUser(userId, leagueId);
   assertClassicEconomy(team);
   const player = await prisma.player.findUnique({ where: { id: playerId }, include: { club: true } });
   if (!player || !player.isActive) throw notFound('Jugador no disponible en el mercado');
@@ -222,10 +226,10 @@ export async function buyPlayer(userId: string, playerId: number) {
   return { ...result, player: { id: player.id, displayName: player.displayName, price: player.price } };
 }
 
-export async function sellPlayer(userId: string, playerId: number) {
+export async function sellPlayer(userId: string, playerId: number, leagueId?: number | null) {
   const settings = await getSettings();
   if (!settings.market_open) throw badRequest('El mercado está cerrado');
-  const team = await getTeamByUser(userId);
+  const team = await getTeamByUser(userId, leagueId);
   assertClassicEconomy(team);
   const entry = await prisma.fantasyTeamPlayer.findUnique({
     where: { teamId_playerId: { teamId: team.id, playerId } },
@@ -275,8 +279,8 @@ export async function sellPlayer(userId: string, playerId: number) {
   return { ...result, player: { id: entry.player.id, displayName: entry.player.displayName } };
 }
 
-export async function getTransferHistory(userId: string) {
-  const team = await getTeamByUser(userId);
+export async function getTransferHistory(userId: string, leagueId?: number | null) {
+  const team = await getTeamByUser(userId, leagueId);
   const [transfers, transactions] = await Promise.all([
     prisma.transfer.findMany({
       where: { teamId: team.id },

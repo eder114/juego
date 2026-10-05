@@ -18,6 +18,7 @@ import {
 import { getSettings, streakMilestones, wordleRewards } from './settings.service';
 import { changeWallet, creditClassicBudget, isUniqueViolation } from './economy.service';
 import { grantCard } from './card.service';
+import { findTeam } from './team.service';
 
 /**
  * Desafíos diarios
@@ -69,14 +70,14 @@ async function streakState(userId: string) {
 }
 
 /** Estado del desafío de hoy para el usuario. No crea la partida (se crea con el primer intento). */
-export async function getWordleState(userId: string) {
+export async function getWordleState(userId: string, leagueId?: number | null) {
   const s = await getSettings();
   const now = new Date();
   const { date, nextResetAt } = todayKey(s.challenge_timezone, now);
   const [attempt, streak, team] = await Promise.all([
     prisma.dailyChallengeAttempt.findUnique({ where: { userId_challengeDate_type: { userId, challengeDate: date, type: TYPE } }, include: { reward: true, challenge: true } }),
     streakState(userId),
-    prisma.fantasyTeam.findUnique({ where: { userId }, select: { id: true, economyVersion: true } }),
+    findTeam(userId, leagueId),
   ]);
   const guesses: GuessRow[] = attempt ? JSON.parse(attempt.guesses) : [];
   return {
@@ -105,7 +106,7 @@ export async function getWordleState(userId: string) {
   };
 }
 
-export async function submitWordleGuess(userId: string, rawGuess: string) {
+export async function submitWordleGuess(userId: string, rawGuess: string, leagueId?: number | null) {
   const s = await getSettings();
   if (!s.wordle_enabled) throw badRequest('El Wordle está desactivado temporalmente');
   const guess = normalizeWord(rawGuess);
@@ -155,7 +156,8 @@ export async function submitWordleGuess(userId: string, rawGuess: string) {
     // Recompensa (única por partida: attemptId es único en daily_challenge_rewards)
     const base = won ? wordleReward(used, wordleRewards(s)) : 0;
     const milestone = counts ? milestoneFor(next.current, streakMilestones(s)) : null;
-    const team = await tx.fantasyTeam.findUnique({ where: { userId }, select: { id: true, economyVersion: true, economyLeagueId: true } });
+    // El premio se abona al equipo de la liga activa: cada liga tiene su propia economía
+    const team = await findTeam(userId, leagueId);
     let credited = 0;
     let bonus = 0;
     let currency = 'K';
@@ -163,9 +165,9 @@ export async function submitWordleGuess(userId: string, rawGuess: string) {
     if (team) {
       if (team.economyVersion === 2) {
         if (base > 0)
-          await changeWallet(tx, { teamId: team.id, amount: base, type: 'DAILY_CHALLENGE_REWARD', description: `Wordle del ${date} acertado en ${used} intento${used === 1 ? '' : 's'}`, userId, leagueId: team.economyLeagueId, reference: `challenge-attempt:${current.id}`, operationId: `challenge:${current.id}` });
+          await changeWallet(tx, { teamId: team.id, amount: base, type: 'DAILY_CHALLENGE_REWARD', description: `Wordle del ${date} acertado en ${used} intento${used === 1 ? '' : 's'}`, userId, leagueId: team.leagueId, reference: `challenge-attempt:${current.id}`, operationId: `challenge:${current.id}` });
         if (milestone?.money)
-          await changeWallet(tx, { teamId: team.id, amount: milestone.money, type: 'STREAK_REWARD', description: `Racha de ${next.current} días`, userId, leagueId: team.economyLeagueId, reference: `challenge-attempt:${current.id}`, operationId: `streak:${current.id}` });
+          await changeWallet(tx, { teamId: team.id, amount: milestone.money, type: 'STREAK_REWARD', description: `Racha de ${next.current} días`, userId, leagueId: team.leagueId, reference: `challenge-attempt:${current.id}`, operationId: `streak:${current.id}` });
         credited = base;
         bonus = milestone?.money ?? 0;
       } else {
@@ -183,7 +185,7 @@ export async function submitWordleGuess(userId: string, rawGuess: string) {
     });
   });
 
-  return getWordleState(userId);
+  return getWordleState(userId, leagueId);
 }
 
 /** Historial del usuario (últimos desafíos jugados). */

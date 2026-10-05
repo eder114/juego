@@ -65,7 +65,17 @@ adminRouter.get('/users', async (req, res) => {
       orderBy: { createdAt: 'desc' },
       skip: (q.page - 1) * q.pageSize,
       take: q.pageSize,
-      select: { id: true, email: true, managerName: true, role: true, isActive: true, createdAt: true, lastLoginAt: true, team: { select: { id: true, name: true, budget: true, totalPoints: true, _count: { select: { players: true } } } } },
+      select: {
+        id: true,
+        email: true,
+        managerName: true,
+        role: true,
+        isActive: true,
+        createdAt: true,
+        lastLoginAt: true,
+        // Un equipo por liga
+        teams: { select: { id: true, name: true, budget: true, wallet: true, economyVersion: true, totalPoints: true, league: { select: { id: true, name: true, type: true } }, _count: { select: { players: true } } } },
+      },
     }),
     prisma.user.count({ where }),
   ]);
@@ -95,7 +105,8 @@ adminRouter.delete('/users/:id', async (req, res) => {
 adminRouter.post('/users/:id/budget', async (req, res) => {
   const id = parse(z.string().min(10), req.params.id);
   const body = parse(z.object({ amount: z.number().int().min(-2000).max(2000), description: z.string().trim().min(3).max(120) }), req.body);
-  const team = await prisma.fantasyTeam.findUnique({ where: { userId: id } });
+  // Ajuste del presupuesto clásico: el equipo del usuario en la liga global
+  const team = await prisma.fantasyTeam.findFirst({ where: { userId: id, league: { type: 'GLOBAL' } } });
   if (!team) throw notFound('El usuario no tiene equipo');
   if (team.economyVersion === 2) throw badRequest('Este equipo juega la economía de liga: ajusta su monedero desde Administración → Economía');
   if (team.budget + body.amount < 0) throw badRequest('El presupuesto no puede quedar negativo');
@@ -576,7 +587,7 @@ adminRouter.patch('/settings', async (req, res) => {
   const before = await getSettings();
   const after = await updateSettings(body);
   if (before.market_open !== after.market_open) {
-    const users = await prisma.user.findMany({ where: { isActive: true, team: { isNot: null } }, select: { id: true } });
+    const users = await prisma.user.findMany({ where: { isActive: true, teams: { some: {} } }, select: { id: true } });
     await notifyMany(
       users.map((u) => ({
         userId: u.id,

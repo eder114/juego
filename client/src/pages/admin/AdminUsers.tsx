@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { KeyRound, PiggyBank, Search, ShieldCheck, Trash2, UserX } from 'lucide-react';
 import { api, errorMessage, qs } from '../../lib/api';
-import { dateShort, money, relativeTime } from '../../lib/format';
+import { dateShort, money, moneyK, relativeTime } from '../../lib/format';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { Badge, Button, Card, ConfirmModal, Field, Input, LoadingBlock, Modal, Pagination, Toggle } from '../../components/ui';
@@ -15,7 +15,7 @@ interface AdminUser {
   isActive: boolean;
   createdAt: string;
   lastLoginAt: string | null;
-  team: { id: number; name: string; budget: number; totalPoints: number; _count: { players: number } } | null;
+  teams: { id: number; name: string; budget: number; wallet: number; economyVersion: number; totalPoints: number; league: { id: number; name: string; type: string } | null; _count: { players: number } }[];
 }
 
 export default function AdminUsers() {
@@ -82,13 +82,13 @@ export default function AdminUsers() {
                     </p>
                   </div>
                   <div className="text-xs text-slate-300 lg:w-56">
-                    {u.team ? (
-                      <>
-                        <p className="font-semibold text-white">{u.team.name}</p>
-                        <p>
-                          {u.team.totalPoints} pts · {money(u.team.budget)} · {u.team._count.players} jugadores
+                    {u.teams.length ? (
+                      u.teams.map((t) => (
+                        <p key={t.id} className="truncate">
+                          <span className="font-semibold text-white">{t.league?.type === 'GLOBAL' ? 'Liga global' : (t.league?.name ?? t.name)}</span>: {t.totalPoints} pts ·{' '}
+                          {t.economyVersion === 2 ? moneyK(t.wallet) : money(t.budget)} · {t._count.players} jugadores
                         </p>
-                      </>
+                      ))
                     ) : (
                       <span className="text-slate-500">Sin equipo</span>
                     )}
@@ -100,7 +100,7 @@ export default function AdminUsers() {
                     <Button size="sm" variant="secondary" disabled={u.id === me?.id} icon={u.role === 'ADMIN' ? <UserX className="size-3.5" /> : <ShieldCheck className="size-3.5" />} onClick={() => update.mutate({ id: u.id, body: { role: u.role === 'ADMIN' ? 'USER' : 'ADMIN' } })}>
                       {u.role === 'ADMIN' ? 'Quitar admin' : 'Hacer admin'}
                     </Button>
-                    <Button size="sm" variant="secondary" disabled={!u.team} className="px-2.5" onClick={() => setBudgetUser(u)} aria-label="Ajustar presupuesto">
+                    <Button size="sm" variant="secondary" disabled={!u.teams.some((t) => t.league?.type === 'GLOBAL' && t.economyVersion === 1)} className="px-2.5" onClick={() => setBudgetUser(u)} aria-label="Ajustar presupuesto">
                       <PiggyBank className="size-4" />
                     </Button>
                     <Button size="sm" variant="secondary" className="px-2.5" onClick={() => setPasswordUser(u)} aria-label="Restablecer contraseña">
@@ -144,6 +144,8 @@ export default function AdminUsers() {
 }
 
 function BudgetModal({ user, onClose, onDone }: { user: AdminUser; onClose: () => void; onDone: () => void }) {
+  // El presupuesto clásico es el del equipo de la liga global
+  const classic = user.teams.find((t) => t.league?.type === 'GLOBAL') ?? null;
   const [amount, setAmount] = useState('1.0');
   const [description, setDescription] = useState('Ajuste administrativo');
   const toast = useToast();
@@ -160,7 +162,7 @@ function BudgetModal({ user, onClose, onDone }: { user: AdminUser; onClose: () =
     <Modal open onClose={onClose} title="Ajustar presupuesto" size="sm" footer={<Button onClick={() => save.mutate()} loading={save.isPending}>Aplicar</Button>}>
       <div className="space-y-4">
         <p className="text-sm text-slate-400">
-          {user.team?.name}: saldo actual {money(user.team?.budget)}
+          {classic?.name ?? user.managerName}: saldo actual {money(classic?.budget ?? 0)} (equipo de la liga global)
         </p>
         <Field label="Importe en £M (negativo para restar)">
           <Input type="number" step="0.1" value={amount} onChange={(e) => setAmount(e.target.value)} />

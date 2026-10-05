@@ -191,12 +191,12 @@ async function freezeCoaches(gameweekId: number, locks: NonNullable<Awaited<Retu
 async function evaluateLeagueLeaders() {
   const leagues = await prisma.league.findMany({
     where: { isSystem: false },
-    include: { members: { select: { userId: true, user: { select: { team: { select: { totalPoints: true } } } } } } },
+    include: { teams: { select: { userId: true, totalPoints: true } } },
   });
   for (const league of leagues) {
-    if (league.members.length < 3) continue;
-    const sorted = [...league.members].sort((a, b) => (b.user.team?.totalPoints ?? 0) - (a.user.team?.totalPoints ?? 0));
-    if ((sorted[0].user.team?.totalPoints ?? 0) > (sorted[1].user.team?.totalPoints ?? 0)) await unlock(sorted[0].userId, 'LEAGUE_LEADER');
+    if (league.teams.length < 3) continue;
+    const sorted = [...league.teams].sort((a, b) => b.totalPoints - a.totalPoints);
+    if (sorted[0].totalPoints > sorted[1].totalPoints) await unlock(sorted[0].userId, 'LEAGUE_LEADER');
   }
 }
 

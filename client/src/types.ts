@@ -77,6 +77,24 @@ export interface Crest {
   initials?: string;
 }
 
+/** Equipo de un mánager en una liga concreta: cada liga tiene el suyo. */
+export interface TeamSummary {
+  id: number;
+  name: string;
+  crest: Crest;
+  leagueId: number | null;
+  /** Sistema clásico: décimas de millón */
+  budget: number;
+  /** Economía de liga: miles de £ */
+  wallet: number;
+  totalPoints: number;
+  economyVersion: 1 | 2;
+  createdAt: string;
+  league: { id: number; name: string; type: string; economyVersion: number } | null;
+  /** El equipo inicial de esta liga se repartió y aún no se ha visto su presentación */
+  initialRevealPending: boolean;
+}
+
 export interface Me {
   id: string;
   email: string;
@@ -85,20 +103,10 @@ export interface Me {
   avatarUrl: string | null;
   createdAt: string;
   favoriteClub: ClubLite | null;
-  team: {
-    id: number;
-    name: string;
-    crest: Crest;
-    budget: number;
-    totalPoints: number;
-    createdAt: string;
-    /** 1 = sistema clásico (décimas de millón) · 2 = economía de liga (miles de £) */
-    economyVersion: 1 | 2;
-    wallet: number;
-    economyLeague: { id: number; name: string } | null;
-    /** El equipo inicial de la partida se ha repartido y aún no se ha visto su presentación */
-    initialRevealPending: boolean;
-  } | null;
+  /** Un equipo por liga (el de la liga global primero) */
+  teams: TeamSummary[];
+  /** Equipo por defecto (el de la liga global): atajo para el registro y el perfil */
+  team: TeamSummary | null;
 }
 
 export interface Coach {

@@ -7,8 +7,8 @@ import { api, qs } from '../lib/api';
 import { money, POSITION_PLURAL, POSITION_SHORT, POSITIONS } from '../lib/format';
 import type { Club, Paginated, Player, Position, Squad } from '../types';
 import { useTransferActions } from '../hooks/useTransferActions';
-import { useAuth } from '../context/AuthContext';
 import LeagueMarket from './LeagueMarket';
+import { useLeague } from '../context/LeagueContext';
 import { Badge, Button, Card, EmptyState, ErrorState, Modal, PageHeader, Select, Skeleton, Tabs, Toggle } from '../components/ui';
 import { PlayerMarketCard } from '../components/PlayerCard';
 import { ClubCrest, PlayerPhoto, PositionBadge, StatusBadge } from '../components/sport';
@@ -37,8 +37,9 @@ function useDebounced<T>(value: T, ms = 300) {
 
 /** El mercado depende de la economía del equipo: mercado de la liga (v2) o mercado libre clásico. */
 export default function Market() {
-  const { user } = useAuth();
-  if (user?.team?.economyVersion === 2) return <LeagueMarket />;
+  const { activeTeam } = useLeague();
+  // El mercado depende de la liga activa: compartido en las ligas con economía, libre en la global
+  if (activeTeam?.economyVersion === 2 && activeTeam.league?.economyVersion === 2) return <LeagueMarket />;
   return <ClassicMarket />;
 }
 
@@ -58,17 +59,18 @@ function ClassicMarket() {
   const [filtersOpen, setFiltersOpen] = useState(false);
   const debouncedSearch = useDebounced(search);
   const { buy, sell, favorite } = useTransferActions();
+  const { activeLeagueId, withLeague } = useLeague();
 
   useEffect(() => setPage(1), [debouncedSearch, position, club, sort, order, onlyAvailable, favorites, maxPrice]);
 
   const params = { search: debouncedSearch, position: position === 'ALL' ? undefined : position, club, sort, order, onlyAvailable: onlyAvailable || undefined, favorites: favorites || undefined, maxPrice: maxPrice < 160 ? maxPrice : undefined, page, pageSize: 24 };
   const { data, isLoading, error, refetch, isFetching } = useQuery({
-    queryKey: ['players', params],
-    queryFn: () => api.get<Paginated<Player>>(`/players${qs(params)}`),
+    queryKey: ['players', params, activeLeagueId],
+    queryFn: () => api.get<Paginated<Player>>(withLeague(`/players${qs(params)}`)),
     placeholderData: keepPreviousData,
   });
   const { data: clubs } = useQuery({ queryKey: ['clubs'], queryFn: () => api.get<Club[]>('/clubs') });
-  const { data: squad } = useQuery({ queryKey: ['team'], queryFn: () => api.get<Squad>('/team') });
+  const { data: squad } = useQuery({ queryKey: ['team', activeLeagueId], queryFn: () => api.get<Squad>(withLeague('/team')) });
 
   const pages = data ? Math.ceil(data.total / data.pageSize) : 1;
   const busyId = (buy.isPending && buy.variables?.id) || (sell.isPending && sell.variables?.id);

@@ -11,19 +11,22 @@ import * as lineups from '../services/lineup.service';
 import * as leagues from '../services/league.service';
 import { computeStandings, monthGameweekIds } from '../services/ranking.service';
 import { dashboard, pointsHistory } from '../services/stats.service';
-import { crestSchema, teamNameSchema } from './validators';
+import { crestSchema, leagueQuery, teamNameSchema } from './validators';
+
+/** Liga activa de la petición: ?league=<id>. Sin ella se usa el equipo por defecto del mánager. */
+const activeLeague = (req: { query: unknown }) => parse(leagueQuery, req.query).league;
 
 export const gameRouter = Router();
 gameRouter.use(requireAuth);
 
 // ─────────────── Dashboard ───────────────
 gameRouter.get('/dashboard', async (req, res) => {
-  res.json(await dashboard(req.user!.id));
+  res.json(await dashboard(req.user!.id, activeLeague(req)));
 });
 
 // ─────────────── Equipo y mercado ───────────────
 gameRouter.get('/team', async (req, res) => {
-  res.json(await squad.getSquad(req.user!.id));
+  res.json(await squad.getSquad(req.user!.id, activeLeague(req)));
 });
 
 gameRouter.post('/team', async (req, res) => {
@@ -33,31 +36,31 @@ gameRouter.post('/team', async (req, res) => {
 
 gameRouter.patch('/team', async (req, res) => {
   const body = parse(z.object({ name: teamNameSchema.optional(), crest: crestSchema.optional() }), req.body);
-  const team = await squad.updateTeam(req.user!.id, body);
+  const team = await squad.updateTeam(req.user!.id, body, activeLeague(req));
   res.json({ ...team, crest: parseCrest(team.crest) });
 });
 
 gameRouter.post('/team/players/:playerId', async (req, res) => {
-  res.status(201).json(await squad.buyPlayer(req.user!.id, intParam(req.params.playerId, 'playerId')));
+  res.status(201).json(await squad.buyPlayer(req.user!.id, intParam(req.params.playerId, 'playerId'), activeLeague(req)));
 });
 
 gameRouter.delete('/team/players/:playerId', async (req, res) => {
-  res.json(await squad.sellPlayer(req.user!.id, intParam(req.params.playerId, 'playerId')));
+  res.json(await squad.sellPlayer(req.user!.id, intParam(req.params.playerId, 'playerId'), activeLeague(req)));
 });
 
 gameRouter.get('/team/transfers', async (req, res) => {
-  res.json(await squad.getTransferHistory(req.user!.id));
+  res.json(await squad.getTransferHistory(req.user!.id, activeLeague(req)));
 });
 
 gameRouter.get('/team/history', async (req, res) => {
-  const team = await squad.getTeamByUser(req.user!.id);
+  const team = await squad.getTeamByUser(req.user!.id, activeLeague(req));
   res.json(await pointsHistory(team.id));
 });
 
 // ─────────────── Alineación ───────────────
 gameRouter.get('/team/lineup', async (req, res) => {
   const { gameweek } = parse(z.object({ gameweek: z.coerce.number().int().positive().optional() }), req.query);
-  res.json(await lineups.getLineupView(req.user!.id, gameweek));
+  res.json(await lineups.getLineupView(req.user!.id, gameweek, activeLeague(req)));
 });
 
 gameRouter.put('/team/lineup/:gameweekId', async (req, res) => {
@@ -71,7 +74,7 @@ gameRouter.put('/team/lineup/:gameweekId', async (req, res) => {
     }),
     req.body,
   );
-  res.json(await lineups.saveLineup(req.user!.id, intParam(req.params.gameweekId, 'gameweekId'), body));
+  res.json(await lineups.saveLineup(req.user!.id, intParam(req.params.gameweekId, 'gameweekId'), body, activeLeague(req)));
 });
 
 // Perfil público de un equipo y su alineación (visible cuando empieza la jornada)
@@ -103,15 +106,11 @@ gameRouter.get('/rankings', async (req, res) => {
     }),
     req.query,
   );
-  let userIds: string[] | undefined;
   let fromGameweek: number | undefined;
   if (q.leagueId) {
+    // Comprueba el acceso a la liga y toma su jornada de inicio
     const detail = await leagues.getLeagueDetail(req.user!.id, q.leagueId, req.user!.role === 'ADMIN');
     fromGameweek = detail.startGameweek;
-    if (detail.type !== 'GLOBAL') {
-      const members = await prisma.leagueMember.findMany({ where: { leagueId: q.leagueId }, select: { userId: true } });
-      userIds = members.map((m) => m.userId);
-    }
   }
   let gameweekIds: number[] | undefined;
   if (q.type === 'weekly') {
@@ -121,7 +120,7 @@ gameRouter.get('/rankings', async (req, res) => {
     const month = q.month ?? new Date().toISOString().slice(0, 7);
     gameweekIds = await monthGameweekIds(month);
   }
-  const { rows, lastGameweekId } = await computeStandings({ userIds, fromGameweek: gameweekIds ? undefined : fromGameweek, gameweekIds });
+  const { rows, lastGameweekId } = await computeStandings({ leagueId: q.leagueId, fromGameweek: gameweekIds ? undefined : fromGameweek, gameweekIds });
   const start = (q.page - 1) * q.pageSize;
   const me = rows.find((r) => r.userId === req.user!.id) ?? null;
   res.json({

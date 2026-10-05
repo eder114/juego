@@ -8,6 +8,7 @@ import { money, moneyFull, moneyIn, moneyK } from '../lib/format';
 import type { LetterState, WordleState } from '../types';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
+import { useLeague } from '../context/LeagueContext';
 import { Badge, Button, Card, CardHeader, EmptyState, ErrorState, LoadingBlock, PageHeader } from '../components/ui';
 import { useServerCountdown } from '../components/economy';
 
@@ -40,7 +41,9 @@ export default function Challenges() {
   const qc = useQueryClient();
   const toast = useToast();
   const { refresh } = useAuth();
-  const { data, isLoading, error, refetch } = useQuery({ queryKey: ['challenges'], queryFn: () => api.get<ChallengesData>('/challenges') });
+  // El premio se abona al equipo de la liga activa
+  const { activeLeagueId, withLeague } = useLeague();
+  const { data, isLoading, error, refetch } = useQuery({ queryKey: ['challenges', activeLeagueId], queryFn: () => api.get<ChallengesData>(withLeague('/challenges')) });
   const [playing, setPlaying] = useState(false);
   const [input, setInput] = useState('');
   const [shake, setShake] = useState(false);
@@ -53,9 +56,9 @@ export default function Challenges() {
   }, [countdown.done, qc]);
 
   const guess = useMutation({
-    mutationFn: (word: string) => api.post<WordleState>('/challenges/wordle/guess', { guess: word }),
+    mutationFn: (word: string) => api.post<WordleState>('/challenges/wordle/guess', { guess: word, league: activeLeagueId ?? undefined }),
     onSuccess: (state) => {
-      qc.setQueryData<ChallengesData>(['challenges'], (prev) => (prev ? { ...prev, wordle: state } : prev));
+      qc.setQueryData<ChallengesData>(['challenges', activeLeagueId], (prev) => (prev ? { ...prev, wordle: state } : prev));
       setInput('');
       if (state.completed) {
         void qc.invalidateQueries({ queryKey: ['challenges'] });

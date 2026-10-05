@@ -6,6 +6,8 @@ import { intParam, parse } from '../lib/http';
 import { badRequest, notFound } from '../lib/errors';
 import { clubLiteSelect, playerSelect } from '../lib/dto';
 import { requireAuth } from '../middleware/auth';
+import { findTeam } from '../services/team.service';
+import { leagueQuery } from './validators';
 import { FIXTURE_STATUSES, NEWS_CATEGORIES, PLAYER_STATUSES, POSITIONS, SCORING_ACTIONS } from '../domain/constants';
 import { getSettings } from '../services/settings.service';
 import { aggFor, getPlayerAggregates, toPlayerDTO } from '../services/player-stats.service';
@@ -24,7 +26,7 @@ catalogRouter.get('/config', async (_req, res) => {
   const s = await getSettings();
   const rules = await prisma.scoringRule.findMany({ where: { isActive: true }, orderBy: [{ position: 'asc' }, { points: 'desc' }] });
   const squad = { GK: s.squad_gk, DEF: s.squad_def, MID: s.squad_mid, FWD: s.squad_fwd };
-  const v2 = s.economy_v2_new_teams;
+  const v2 = s.economy_v2_new_leagues;
   res.json({
     season: s.season,
     // Con la economía de liga los equipos nuevos reciben el presupuesto de liga (miles de £ → décimas)
@@ -88,6 +90,7 @@ catalogRouter.get('/players', async (req, res) => {
       maxPrice: z.coerce.number().int().optional(),
       onlyAvailable: z.enum(['true', 'false']).optional(),
       favorites: z.enum(['true', 'false']).optional(),
+      league: z.coerce.number().int().positive().optional(),
       page: z.coerce.number().int().min(1).default(1),
       pageSize: z.coerce.number().int().min(1).max(100).default(24),
     }),
@@ -109,10 +112,11 @@ catalogRouter.get('/players', async (req, res) => {
   const [players, { map }, team, favorites] = await Promise.all([
     prisma.player.findMany({ where, select: playerSelect }),
     getPlayerAggregates(),
-    prisma.fantasyTeam.findUnique({ where: { userId: req.user!.id }, select: { players: { select: { playerId: true } } } }),
+    findTeam(req.user!.id, q.league),
     prisma.favoritePlayer.findMany({ where: { userId: req.user!.id }, select: { playerId: true } }),
   ]);
-  const squadIds = new Set(team?.players.map((p) => p.playerId) ?? []);
+  const squad = team ? await prisma.fantasyTeamPlayer.findMany({ where: { teamId: team.id }, select: { playerId: true } }) : [];
+  const squadIds = new Set(squad.map((p) => p.playerId));
   const favIds = new Set(favorites.map((f) => f.playerId));
 
   const key: Record<(typeof SORTS)[number], (p: ReturnType<typeof toPlayerDTO>) => number | string> = {
@@ -169,6 +173,7 @@ catalogRouter.get('/players/:id', async (req, res) => {
   const player = await prisma.player.findUnique({ where: { id }, select: playerSelect });
   if (!player) throw notFound('Jugador no encontrado');
   const now = new Date();
+  const { league } = parse(leagueQuery, req.query);
   const [{ map }, prices, statistics, injuries, upcoming, team, favorite] = await Promise.all([
     getPlayerAggregates(),
     prisma.playerPrice.findMany({ where: { playerId: id }, orderBy: { createdAt: 'asc' }, select: { price: true, change: true, reason: true, createdAt: true, gameweekId: true } }),
@@ -184,9 +189,13 @@ catalogRouter.get('/players/:id', async (req, res) => {
       orderBy: { kickoff: 'asc' },
       take: 6,
     }),
-    prisma.fantasyTeam.findUnique({ where: { userId: req.user!.id }, select: { players: { where: { playerId: id }, select: { purchasePrice: true } } } }),
+    findTeam(req.user!.id, league),
     prisma.favoritePlayer.findUnique({ where: { userId_playerId: { userId: req.user!.id, playerId: id } } }),
   ]);
+  // ¿Está en la plantilla del equipo de la liga activa?
+  const squadEntry = team
+    ? await prisma.fantasyTeamPlayer.findUnique({ where: { teamId_playerId: { teamId: team.id, playerId: id } }, select: { purchasePrice: true } })
+    : null;
 
   const matches = statistics.map((s) => {
     const home = s.fixture.homeClubId === s.clubId;
@@ -225,8 +234,8 @@ catalogRouter.get('/players/:id', async (req, res) => {
       const home = f.homeClubId === player.clubId;
       return { id: f.id, gameweekId: f.gameweekId, kickoff: f.kickoff, home, opponent: home ? f.awayClub : f.homeClub, difficulty: home ? f.homeDifficulty : f.awayDifficulty };
     }),
-    inSquad: (team?.players.length ?? 0) > 0,
-    purchasePrice: team?.players[0]?.purchasePrice ?? null,
+    inSquad: !!squadEntry,
+    purchasePrice: squadEntry?.purchasePrice ?? null,
     isFavorite: !!favorite,
   });
 });

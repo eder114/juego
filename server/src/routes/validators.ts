@@ -47,3 +47,6 @@ export const statLineSchema = z.object({
   saves: z.number().int().min(0).max(30).default(0),
   bonus: z.number().int().min(0).max(3).default(0),
 });
+
+/** Liga activa: las pantallas envían ?league=<id> porque cada liga tiene su propio equipo. */
+export const leagueQuery = z.object({ league: z.coerce.number().int().positive().optional() });

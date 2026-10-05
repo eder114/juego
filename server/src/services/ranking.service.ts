@@ -17,7 +17,8 @@ export interface StandingRow {
 }
 
 export interface StandingsOptions {
-  userIds?: string[];
+  /** Liga cuya clasificación se calcula (sus equipos). Sin ella, la liga global. */
+  leagueId?: number;
   fromGameweek?: number;
   gameweekIds?: number[];
 }
@@ -48,8 +49,10 @@ export async function computeStandings(opts: StandingsOptions = {}) {
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < TTL) return hit.value;
 
+  // La clasificación de una liga son los equipos de esa liga (cada mánager tiene uno por liga)
+  const leagueId = opts.leagueId ?? (await prisma.league.findFirst({ where: { type: 'GLOBAL', isSystem: true }, select: { id: true } }))?.id;
   const teams = await prisma.fantasyTeam.findMany({
-    where: opts.userIds ? { userId: { in: opts.userIds } } : undefined,
+    where: { leagueId },
     select: { id: true, name: true, crest: true, createdAt: true, user: { select: { id: true, managerName: true, avatarUrl: true } } },
   });
   const gwFilter = opts.gameweekIds

@@ -7,7 +7,7 @@ import { dateShort, dateTime, money, moneyK, POSITION_LABEL } from '../lib/forma
 import type { ClubLite, Player } from '../types';
 import { useTransferActions } from '../hooks/useTransferActions';
 import { useLeagueEconomy } from '../hooks/useLeagueEconomy';
-import { useAuth } from '../context/AuthContext';
+import { useLeague } from '../context/LeagueContext';
 import { RarityBadge } from '../components/economy';
 import { Badge, Button, Card, CardHeader, EmptyState, ErrorState, LoadingBlock } from '../components/ui';
 import { ClubCrest, DifficultyPill, PlayerPhoto, PositionBadge, PriceChange, StatusBadge } from '../components/sport';
@@ -43,12 +43,12 @@ interface PlayerDetailData extends Player {
 export default function PlayerDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { data: p, isLoading, error, refetch } = useQuery({ queryKey: ['player', id], queryFn: () => api.get<PlayerDetailData>(`/players/${id}`) });
+  const { activeLeagueId, activeTeam, withLeague } = useLeague();
+  const { data: p, isLoading, error, refetch } = useQuery({ queryKey: ['player', id, activeLeagueId], queryFn: () => api.get<PlayerDetailData>(withLeague(`/players/${id}`)) });
   const { buy, sell, favorite } = useTransferActions();
   const { sellPlayer } = useLeagueEconomy();
-  const { user } = useAuth();
   // Economía de liga: el jugador se ficha en el mercado diario compartido y se valora en miles de £
-  const v2 = user?.team?.economyVersion === 2;
+  const v2 = activeTeam?.economyVersion === 2 && activeTeam.league?.economyVersion === 2;
   const valuations = useQuery({
     queryKey: ['player', id, 'valuations'],
     queryFn: () => api.get<{ value: number; createdAt: string; reason: string }[]>(`/players/${id}/valuations`),

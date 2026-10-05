@@ -2,7 +2,8 @@ import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import { prisma } from '../lib/prisma';
 import { badRequest, conflict, forbidden, notFound, unauthorized } from '../lib/errors';
-import { clubLiteSelect, parseCrest } from '../lib/dto';
+import { clubLiteSelect } from '../lib/dto';
+import { listMyTeams } from './team.service';
 import { signToken } from '../middleware/auth';
 import { env } from '../config/env';
 import { getSettings } from './settings.service';
@@ -27,28 +28,12 @@ export async function getMe(userId: string) {
       avatarUrl: true,
       createdAt: true,
       favoriteClub: { select: clubLiteSelect },
-      team: {
-        select: {
-          id: true,
-          name: true,
-          crest: true,
-          budget: true,
-          totalPoints: true,
-          createdAt: true,
-          economyVersion: true,
-          wallet: true,
-          economyLeague: { select: { id: true, name: true } },
-          initialSquad: true,
-          initialRevealedAt: true,
-        },
-      },
     },
   });
   if (!user) throw notFound('Usuario no encontrado');
-  if (!user.team) return { ...user, team: null };
-  // La presentación del equipo inicial está pendiente mientras exista reparto guardado y no se haya visto
-  const { initialSquad, initialRevealedAt, ...team } = user.team;
-  return { ...user, team: { ...team, crest: parseCrest(team.crest), initialRevealPending: !!initialSquad && !initialRevealedAt } };
+  // Un equipo por liga: el cliente elige con cuál trabaja (liga activa)
+  const teams = await listMyTeams(userId);
+  return { ...user, teams, team: teams[0] ?? null };
 }
 
 export async function register(input: {

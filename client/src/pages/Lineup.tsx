@@ -7,6 +7,7 @@ import { api, errorMessage } from '../lib/api';
 import { countdown, dateTime, GW_STATUS, POSITION_PLURAL, STATUS_META } from '../lib/format';
 import type { LineupEntry, LineupView, Position } from '../types';
 import { useToast } from '../context/ToastContext';
+import { useLeague } from '../context/LeagueContext';
 import { Badge, Button, Card, EmptyState, ErrorState, LoadingBlock, PageHeader, Select } from '../components/ui';
 import { ClubCrest, PlayerPhoto, PositionBadge, StatusBadge } from '../components/sport';
 import { Pitch, type LineupState } from '../components/Pitch';
@@ -39,7 +40,12 @@ export default function Lineup() {
   const gw = params.get('gw') ?? undefined;
   const toast = useToast();
   const qc = useQueryClient();
-  const { data: view, isLoading, error, refetch } = useQuery({ queryKey: ['lineup', gw ?? 'current'], queryFn: () => api.get<LineupView>(`/team/lineup${gw ? `?gameweek=${gw}` : ''}`) });
+  // La alineación es la del equipo de la liga activa
+  const { activeLeagueId, withLeague } = useLeague();
+  const { data: view, isLoading, error, refetch } = useQuery({
+    queryKey: ['lineup', activeLeagueId, gw ?? 'current'],
+    queryFn: () => api.get<LineupView>(withLeague(`/team/lineup${gw ? `?gameweek=${gw}` : ''}`)),
+  });
 
   const [state, setState] = useState<LineupState | null>(null);
   const [dirty, setDirty] = useState(false);
@@ -57,7 +63,7 @@ export default function Lineup() {
   const squadEntries = useMemo(() => (view?.players ?? []).filter((e) => e.inSquad), [view]);
 
   const save = useMutation({
-    mutationFn: () => api.put<{ warnings: string[] }>(`/team/lineup/${view!.gameweek.id}`, state),
+    mutationFn: () => api.put<{ warnings: string[] }>(withLeague(`/team/lineup/${view!.gameweek.id}`), state),
     onSuccess: (res) => {
       toast.push('success', res.warnings.length ? `Alineación guardada. Aviso: ${res.warnings[0]}` : 'Alineación guardada');
       qc.invalidateQueries({ queryKey: ['lineup'] });

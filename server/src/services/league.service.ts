@@ -9,6 +9,7 @@ import { notify } from './notification.service';
 import { evaluateLeagueAchievements } from './achievement.service';
 import { getSettings } from './settings.service';
 import { joinEconomy, leaveEconomy, leagueEconomySummary } from './market.service';
+import { primaryTeam } from './team.service';
 
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -28,8 +29,9 @@ export const LEAGUE_TYPE_INFO: Record<LeagueType, { label: string; description: 
   INVITE: { label: 'Liga por invitación', description: 'Solo pueden entrar mánagers invitados por el administrador' },
 };
 
+/** Para entrar en ligas hace falta haber creado el equipo del registro (el de la liga global). */
 async function requireTeam(userId: string) {
-  const team = await prisma.fantasyTeam.findUnique({ where: { userId } });
+  const team = await primaryTeam(userId);
   if (!team) throw badRequest('Crea tu equipo Fantasy antes de unirte a ligas');
   return team;
 }
@@ -73,11 +75,8 @@ export async function listMyLeagues(userId: string) {
   });
   const result = [];
   for (const m of memberships) {
-    const members = await prisma.leagueMember.findMany({ where: { leagueId: m.leagueId }, select: { userId: true } });
-    const { rows } = await computeStandings({
-      userIds: m.league.type === 'GLOBAL' ? undefined : members.map((x) => x.userId),
-      fromGameweek: m.league.startGameweek,
-    });
+    // Clasificación de la liga: sus equipos (cada mánager tiene uno propio en cada liga)
+    const { rows } = await computeStandings({ leagueId: m.leagueId, fromGameweek: m.league.startGameweek });
     const mine = rows.find((r) => r.userId === userId);
     result.push({
       ...serializeLeague(m.league, m.league._count.members),
@@ -142,17 +141,15 @@ export async function createLeague(userId: string, input: CreateLeagueInput) {
 }
 
 /**
- * Al entrar en una liga con economía de liga, un equipo que aún no juega ninguna partida recibe
- * automáticamente su equipo inicial. Los equipos del sistema clásico con plantilla deben confirmarlo
- * expresamente desde la página de la liga (se sustituye su plantilla).
+ * Al entrar en una liga con economía, el mánager recibe automáticamente el equipo de ESA liga
+ * (13 jugadores y presupuesto propios). Sus equipos en otras ligas no se tocan.
  */
 async function autoJoinEconomy(userId: string, leagueId: number) {
-  const [league, team] = await Promise.all([
+  const [league, existing] = await Promise.all([
     prisma.league.findUnique({ where: { id: leagueId }, select: { economyVersion: true } }),
-    prisma.fantasyTeam.findUnique({ where: { userId }, select: { economyVersion: true, economyLeagueId: true, _count: { select: { players: true } } } }),
+    prisma.fantasyTeam.findFirst({ where: { userId, leagueId }, select: { id: true } }),
   ]);
-  if (league?.economyVersion !== 2 || !team || team.economyLeagueId) return { joined: false };
-  if (team.economyVersion === 1 && team._count.players > 0) return { joined: false, requiresConfirmation: true };
+  if (league?.economyVersion !== 2 || existing) return { joined: false };
   try {
     return await joinEconomy(userId, leagueId);
   } catch (err) {
@@ -160,10 +157,10 @@ async function autoJoinEconomy(userId: string, leagueId: number) {
   }
 }
 
-/** Si el equipo jugaba la economía de esta liga, se liberan sus jugadores antes de salir. */
+/** Al salir de una liga se libera la plantilla de su equipo (los de otras ligas no cambian). */
 async function releaseEconomyIfBound(userId: string, leagueId: number, reason: string, actor?: string) {
-  const team = await prisma.fantasyTeam.findUnique({ where: { userId }, select: { id: true, economyLeagueId: true } });
-  if (team?.economyLeagueId === leagueId) await leaveEconomy(team.id, reason, actor);
+  const team = await prisma.fantasyTeam.findFirst({ where: { userId, leagueId }, select: { id: true } });
+  if (team) await leaveEconomy(team.id, reason, actor);
 }
 
 async function addMember(leagueId: number, userId: string) {
@@ -243,8 +240,7 @@ export async function getLeagueDetail(userId: string, leagueId: number, isSiteAd
   if (!membership && !isSiteAdmin && !['PUBLIC', 'GLOBAL'].includes(league.type)) throw forbidden('Esta liga es privada');
 
   const isGlobal = league.type === 'GLOBAL';
-  const userIds = isGlobal ? undefined : league.members.map((m) => m.userId);
-  const { rows, lastGameweekId } = await computeStandings({ userIds, fromGameweek: league.startGameweek });
+  const { rows, lastGameweekId } = await computeStandings({ leagueId, fromGameweek: league.startGameweek });
   const standings = (isGlobal ? rows.slice(0, 100) : rows).map((r) => ({
     ...r,
     role: league.members.find((m) => m.userId === r.userId)?.role ?? 'MEMBER',
