@@ -10,6 +10,8 @@ import { useLeague } from '../context/LeagueContext';
 interface TxPage {
   economyVersion: 1 | 2;
   wallet: number;
+  /** k£ retenidos por pujas vivas */
+  reserved: number;
   budget: number;
   items: EconomyTransaction[];
   nextCursor: number | null;
@@ -39,7 +41,13 @@ export default function Economy() {
       <PageHeader eyebrow="Economía" title="Movimientos" subtitle="Todos los cambios de tu presupuesto quedan registrados con su motivo y el saldo resultante." />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-        <StatCard accent label="Saldo actual" value={v2 ? moneyK(first.wallet) : money(first.budget)} icon={<Wallet />} sub={v2 ? moneyFull(first.wallet) : 'Sistema clásico'} />
+        <StatCard
+          accent
+          label="Saldo actual"
+          value={v2 ? moneyK(first.wallet) : money(first.budget)}
+          icon={<Wallet />}
+          sub={v2 ? (first.reserved ? `${moneyK(first.reserved)} retenidos en pujas` : moneyFull(first.wallet)) : 'Sistema clásico'}
+        />
         {v2 && <StatCard label="Ingresos" value={moneyK(income)} icon={<ArrowDownLeft />} sub="Ventas y premios (movimientos cargados)" />}
         {v2 && <StatCard label="Gastos" value={moneyK(spent)} icon={<ArrowUpRight />} sub="Fichajes (movimientos cargados)" className="col-span-2 lg:col-span-1" />}
       </div>

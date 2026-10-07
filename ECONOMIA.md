@@ -95,7 +95,9 @@ El motor de alineación existente se reutiliza sin cambios: el banquillo admite 
 | --- | --- |
 | LeagueMarket | Campos de `League`: `economyVersion`, `marketTimezone`, `marketResetMinute`, `marketPityCounter`, `economyStartedAt` |
 | MarketCycle | `MarketCycle`, único por `(leagueId, startsAt)` |
-| MarketListing | `MarketListing`, con precio fijo `listingPrice` y estado `AVAILABLE` / `SOLD` |
+| Auction | `MarketListing`: cada anuncio ES la subasta. `listingPrice` es el precio de salida, `topBid` / `topBidTeamId` la puja más alta viva, `bidCount` / `bidderCount` la actividad y `finalPrice` / `buyerTeamId` / `settledAt` el resultado. Estados: `AVAILABLE` (abierta), `SOLD` (adjudicada), `UNSOLD` (desierta). |
+| AuctionBid | `MarketBid`, único por `(listingId, teamId, amount)` para que un doble clic no duplique una puja. Las pujas anteriores nunca se sobrescriben: pasan a `OUTBID`, y tras el cierre a `WON` / `LOST`. |
+| BudgetReservation | `BudgetReservation`, única por `(teamId, listingId)`, con estados `HELD` / `RELEASED` / `SPENT`. La suma de las reservas vivas de un equipo es su columna `fantasy_teams.reserved`. |
 | LeaguePlayerOwnership | `LeaguePlayerOwnership`, único por `(leagueId, playerId)` y por `(teamId, playerId)`, y `LeagueCoachOwnership` para entrenadores |
 | Enfriamiento tras la venta | `LeagueAssetCooldown` |
 | PlayerValuationHistory / CoachValuationHistory | `PlayerValuation` / `CoachValuation`, únicos por `(jugador, jornada, motivo)` |
@@ -107,37 +109,131 @@ El motor de alineación existente se reutiliza sin cambios: el banquillo admite 
 
 Todos los cambios del esquema son **aditivos**: tablas nuevas y columnas con valor por defecto. No se ha borrado ni transformado ningún dato existente.
 
-## 4. Mercado diario compartido
+## 4. Mercado de subastas compartido
 
-- **Ciclo diario.** Por defecto, la hora de reinicio de cada liga es la hora local en que se creó; se puede cambiar desde la página de la liga (su administrador) o desde Administración. Las fechas se guardan en UTC y el reinicio se calcula con la zona horaria IANA de la liga, horario de verano incluido. Es el servidor quien decide el ciclo vigente; el reloj del navegador no interviene.
-- **Generación.** El ciclo se crea al abrir el mercado o desde la tarea que corre cada minuto. Si dos peticiones lo generan a la vez, la restricción única `(leagueId, startsAt)` hace que solo una prospere y la otra reutiliza su resultado.
-- **Selección.** Hay N jugadores (10 por defecto) y entre 1 y 2 entrenadores. Primero se elige la rareza según las probabilidades configuradas y después un jugador al azar de esa rareza.
-  - Se excluyen los jugadores que ya tienen dueño en la liga y los que están en enfriamiento tras una venta.
-  - Un límite de diversidad restringe cuántos jugadores pueden compartir posición; si no hay alternativa, el límite se relaja.
-- **Protección contra la mala suerte (pity).** Cada día sin un jugador de rareza alta, las rarezas altas multiplican su peso (+25 % por día, hasta ×4). Al llegar al número de días configurado (7 por defecto) se garantiza uno. El contador vuelve a 0 cuando aparece.
-- **Precio fijo.** El precio de cada anuncio es el valor del jugador en el momento de generar el mercado y no cambia durante el ciclo.
+El mercado de cada liga es un **mercado de subastas**: los jugadores no se compran, se pujan. Todas las subastas
+de un mercado abren y cierran exactamente con su ciclo, así que no hay temporizadores por jugador ni prórrogas.
 
-### Compra atómica
+```
+LIGA ─▶ MERCADO (24 h) ─┬─▶ SUBASTA Salah ─┬─▶ pujas
+                        ├─▶ SUBASTA Saka  ─┤
+                        └─▶ SUBASTA Palmer─┘
+                                 │
+                        cierre simultáneo
+                                 ▼
+             adjudicar · cobrar · devolver · generar el mercado siguiente
+```
 
-Todo ocurre dentro de **una transacción** (`market.service.ts → buyListing`):
+### El ciclo
 
-1. El usuario pertenece a la liga y a su partida, y el mercado está abierto y vigente.
-2. *Compare-and-set* sobre el anuncio: `UPDATE … WHERE id = ? AND status = 'AVAILABLE'`. Solo una transacción puede cambiarlo a `SOLD`.
-3. Débito condicional del monedero (`WHERE wallet >= precio`). Esto bloquea la fila del equipo hasta el final de la transacción.
-4. Reglas de plantilla (tamaño, posición, club), comprobadas con los datos ya bloqueados.
-5. Propiedad única por liga (restricción `leagueId + playerId`).
-6. Movimiento económico con una clave de idempotencia (`economy_operation_keys`) y registro de auditoría.
+- **Duración.** 24 horas por defecto (`market_cycle_hours`). La hora de reinicio de cada liga es la hora local en
+  que se creó y se puede cambiar desde la página de la liga o desde Administración. Las fechas se guardan en UTC y
+  el reinicio se calcula con la zona horaria IANA de la liga, horario de verano incluido. Con 24 h exactas el
+  siguiente cierre es la misma hora local del día siguiente, de modo que el cambio de hora no desplaza el mercado.
+- **Quién decide la hora.** Siempre el servidor. La respuesta del mercado incluye `serverTime` y el navegador
+  corrige su desfase con él: cambiar la hora del ordenador no adelanta ni retrasa nada.
+- **Generación.** El ciclo se crea al abrir el mercado o desde la tarea que corre cada minuto. Si dos peticiones lo
+  generan a la vez, la restricción única `(leagueId, startsAt)` hace que solo una prospere y la otra reutiliza su
+  resultado. Antes de generar uno nuevo se liquida el anterior, de modo que el dinero retenido se resuelve antes
+  de que empiecen las pujas siguientes.
+- **Selección.** Hay N jugadores (10 por defecto) y entre 1 y 2 entrenadores, idénticos para todos los mánagers de
+  la liga. Primero se elige la rareza según las probabilidades configuradas y después un jugador al azar de esa
+  rareza. Se excluyen los que ya tienen dueño en la liga y los que están en enfriamiento tras una venta, y un
+  límite de diversidad restringe cuántos pueden compartir posición.
+- **Protección contra la mala suerte (pity).** Cada día sin un jugador de rareza alta, las rarezas altas multiplican
+  su peso (+25 % por día, hasta ×4). Al llegar al número de días configurado (7 por defecto) se garantiza uno.
 
-Si falla cualquier paso, se deshace todo. Con dos compras simultáneas solo una consigue el jugador; la otra recibe *«Este jugador acaba de ser comprado por otro usuario.»* y no se le cobra nada. Los rechazos quedan en la auditoría.
+### Precio de salida y precio final
 
-Los demás mánagers ven el anuncio como vendido en un máximo de 15 segundos. La pantalla del mercado se consulta periódicamente mientras está visible (la aplicación no usa WebSockets) y se refresca al momento si una compra falla por conflicto o termina el ciclo.
+El **precio de salida** (`listingPrice`) es un porcentaje configurable del valor del jugador (90 % por defecto),
+acotado entre un mínimo y un máximo. El **precio final** es la puja más alta al cerrar el mercado, así que puede
+quedar muy por encima del valor:
+
+| Campo | Significado |
+| --- | --- |
+| `Player.marketValue` | Valor del jugador según su rendimiento real |
+| `MarketListing.listingPrice` | Precio de salida de la subasta |
+| `MarketListing.topBid` | Puja más alta viva |
+| `MarketListing.finalPrice` | Precio pagado por el ganador |
+| `bidCount` / `bidderCount` | Cuántas pujas y cuántos mánagers distintos |
+
+### Pujar (`auction.service.ts → placeBid`)
+
+Una puja tiene que superar a la actual en al menos la **subida mínima** configurada (£0.5M por defecto); la primera
+tiene que alcanzar el precio de salida. Todo se decide en **una transacción**:
+
+1. El usuario pertenece a la liga, tiene equipo en ella y el mercado está abierto y vigente (`now < cycle.endsAt`).
+2. El jugador cabría en su plantilla contando **también las subastas que ya va ganando**: así nadie puede liderar
+   más pujas de las que podría llegar a fichar.
+3. Se lee el estado real de la subasta dentro de la transacción y se escribe con una comparación condicional sobre
+   esa misma puja (`WHERE topBid = <la leída> AND topBidTeamId = <el leído> AND status = 'AVAILABLE'`). Si otro
+   mánager pujó entremedias, la escritura no afecta a ninguna fila y la petición se rechaza con un 409.
+4. El importe se compara con el mínimo calculado a partir del estado recién leído, nunca con lo que dijera el
+   navegador.
+5. **Dinero.** Se retiene la diferencia respecto a lo que ese equipo ya tuviera comprometido en esa misma subasta
+   (subir de £80M a £95M retiene £15M más, no £95M). La retención se hace con un `UPDATE … WHERE wallet - reserved
+   >= <importe>`, de modo que la base de datos impide comprometer más dinero del disponible aunque lleguen varias
+   pujas a la vez. Al líder anterior se le libera su reserva en el acto.
+6. La puja se guarda en el historial y las anteriores pasan a `OUTBID`. Un doble clic con el mismo importe choca
+   con la restricción única `(listingId, teamId, amount)` y no duplica nada.
+
+Al mánager superado le llega un aviso con la puja que le ha pasado por delante.
+
+### Dinero disponible y dinero retenido
+
+`fantasy_teams.wallet` es el saldo total y `fantasy_teams.reserved` lo comprometido en pujas vivas. Lo que se puede
+gastar es **`wallet − reserved`**, y es lo que muestran la cabecera, el mercado, la plantilla y la página de
+movimientos. Cualquier cargo del sistema (fichajes, cartas, ajustes) pasa por el mismo `UPDATE` condicional, así que
+el dinero retenido en una subasta no se puede gastar en ninguna otra cosa.
+
+### Cierre y liquidación (`auction.service.ts → settleCycle`)
+
+Al vencer `cycle.endsAt` ya no se admite ninguna puja más. La liquidación recorre las subastas del ciclo y cierra
+cada una **en su propia transacción**, de modo que una incidencia puntual no bloquea al resto:
+
+- **Con ganador:** se marca `SOLD` con una escritura condicional (`WHERE status = 'AVAILABLE'`), se cobra al ganador
+  el dinero que ya tenía retenido (baja `wallet` y `reserved` a la vez), se crea la propiedad única de la liga y la
+  ficha en su plantilla, su reserva pasa a `SPENT`, las pujas perdedoras a `LOST` y sus reservas se liberan.
+- **Sin pujas:** la subasta queda `UNSOLD`; no se cobra ni se adjudica nada y el jugador podrá volver a salir otro
+  día en esa liga.
+- **Si el ganador ya no tiene hueco** (llenó su plantilla entretanto) la subasta se anula: no se le cobra, se le
+  avisa y el jugador queda libre.
+
+Todo es **idempotente**: el cambio de estado es condicional y el cobro lleva clave de idempotencia
+(`auction:<listingId>` en `economy_operation_keys`), así que repetir la liquidación no cobra ni adjudica dos veces.
+Ganadores y perdedores reciben su aviso, y el resultado queda en la auditoría (`AUCTION_WON`, `AUCTION_UNSOLD`,
+`AUCTION_VOID`). El cierre lo dispara la tarea que corre cada 30 segundos y también la generación del ciclo
+siguiente, que no se produce hasta que el anterior está liquidado.
+
+### Actualización en vivo
+
+La aplicación no usa WebSockets: el mercado se mantiene al día con **consultas periódicas**, igual que el resto de
+la aplicación. La vista completa se pide cada 15 segundos y, además, hay un **latido** mucho más ligero
+(`GET /market/league/pulse`) que cada 5 segundos devuelve solo lo que cambia: hora del servidor, saldo, dinero
+retenido y, por subasta, la puja más alta, si la lideras, tu puja y el mínimo siguiente. Con eso la tarjeta pasa
+sola a «Oferta superada» sin recargar, y el latido sigue corriendo aunque la pestaña no tenga el foco. Al llegar el
+cierre la página vuelve a pedirlo todo para mostrar el resultado y el mercado nuevo.
+
+### Estados que ve el mánager
+
+`VAS GANANDO` · `OFERTA SUPERADA` · `SIN OFERTAS` · `SUBASTA FINALIZADA` (adjudicada o desierta). Cada tarjeta
+muestra el precio de salida o la oferta actual, tu oferta, cuántas pujas lleva, el contador común del mercado y el
+historial completo de la subasta.
 
 ### Venta
 
-- La venta se hace al banco, al valor actual por el porcentaje configurable (100 % por defecto).
+La venta sigue siendo al banco (las subastas son solo del mercado diario):
+
+- Se vende al valor actual por el porcentaje configurable (100 % por defecto).
 - Se borra la propiedad con un borrado condicional, de modo que una doble venta simultánea solo cobra una vez.
-- El jugador sale de las alineaciones que aún no están cerradas y entra en un enfriamiento de 48 horas (configurable) antes de poder volver al mercado de esa liga.
+- El jugador sale de las alineaciones que aún no están cerradas y entra en un enfriamiento de 48 horas
+  (configurable) antes de poder volver al mercado de esa liga.
 - Un jugador cuyo partido de la jornada ya ha empezado no se puede vender.
+
+### Abandonar la liga con pujas vivas
+
+Al salir de una liga (o al reinicializar su economía) se cancelan las pujas de ese equipo, se libera su dinero y las
+subastas que lideraba vuelven a quedar sin oferta, para que el resto de mánagers pueda seguir pujando por ellas.
 
 ## 5. Valoración dinámica
 
@@ -207,7 +303,12 @@ Al cerrar la jornada, las activaciones pasan a `APPLIED` con su efecto en puntos
 
 Todos los parámetros se validan antes de guardar; por ejemplo, las rarezas no pueden sumar más del 100 %, la zona horaria tiene que ser IANA y los premios de racha tienen que ser un JSON válido. Están organizados en estos grupos:
 
-- **Economía de liga**, **Equipo inicial**, **Mercado de liga** (incluye las probabilidades y la protección pity), **Rareza** y **Valoración**.
+- **Economía de liga**, **Equipo inicial**, **Mercado de liga** y **Rareza** y **Valoración**.
+- En **Mercado de liga** están, además de las probabilidades y la protección pity: la duración del ciclo
+  (`market_cycle_hours`), la subida mínima entre pujas (`market_min_increment`), el precio de salida como porcentaje
+  del valor (`market_start_percent`) y sus topes (`market_start_min`, `market_start_max`), cuántos jugadores y
+  entrenadores salen cada día y el enfriamiento tras una venta. La hora de cierre y la zona horaria son de cada
+  liga. Aunque hoy el ciclo sea de 24 horas, la duración ya es un ajuste: cambiarla afecta al mercado siguiente.
 - **Entrenadores**, **Cartas** y **Desafíos diarios**.
 
 Las cartas (nombre, rareza, efecto, límites, si se pueden activar y si se pueden conseguir) se editan en Administración → Economía → Cartas.
@@ -226,7 +327,7 @@ Cuando el backend reparte el equipo inicial, el usuario no entra directamente al
 
 ## 10. Pruebas
 
-`npm test` (servidor) ejecuta 78 pruebas:
+`npm test` (servidor) ejecuta 92 pruebas:
 
 - `tests/domain.test.ts`: las 21 pruebas anteriores de puntuación, alineaciones y precios.
 - `tests/economy.test.ts`: 27 pruebas unitarias de dominio.
@@ -234,11 +335,17 @@ Cuando el backend reparte el equipo inicial, el usuario no entra directamente al
   - Mercado: 10 jugadores sin duplicados y sin comprados, rareza, pity, diversidad y entre 1 y 2 entrenadores.
   - Rarezas y valoración: subida, bajada, límites, suavizado y elasticidad.
   - Zonas horarias y horario de verano, Wordle (evaluación, tildes y Ñ, premios), rachas, modificadores de cartas y puntos de entrenador.
-- `tests/economy.integration.test.ts`: 30 pruebas contra una copia de la base de datos real.
+- `tests/economy.integration.test.ts`: 44 pruebas contra una copia de la base de datos real.
   - Equipo inicial y £100M para cuatro mánagers, y propiedad única.
   - Ciclo único ante 5 peticiones simultáneas.
-  - Compra simultánea con un único ganador y sin cobro al perdedor.
-  - Rechazo por falta de presupuesto con reversión de la transacción.
+  - Pujas simultáneas: solo una se convierte en la oferta más alta y solo ella retiene dinero.
+  - Rechazo por falta de dinero disponible, sin tocar la subasta.
+  - Subastas de principio a fin: primera puja al precio de salida, superación con devolución inmediata, subir la
+    propia puja retiendo solo la diferencia, doble clic sin duplicar, no comprometer dinero ya reservado, no pujar
+    desde fuera de la liga, estado intacto al recargar, cierre con adjudicación y cobro al ganador, devolución
+    íntegra a los perdedores, liquidación idempotente, rechazo de pujas tras el cierre, subastas desiertas sin
+    cobro, generación automática del mercado siguiente y el mismo jugador subastado en otra liga con presupuestos
+    independientes.
   - Venta con enfriamiento.
   - Wordle: intentos simultáneos, 6 intentos como máximo, sin reinicio y premio único ante peticiones repetidas.
   - Cartas: activación idempotente, carrera de activaciones, presión con límite y bloqueo tras el cierre.

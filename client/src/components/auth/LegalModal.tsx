@@ -48,7 +48,7 @@ function LegalContent({ tab, onTab }: { tab: LegalTab; onTab: (t: LegalTab) => v
                 <b>{formatBudget(Math.round(cfg.economy.initialBudgetK / 100))}</b> que se suman a tu equipo inicial.
               </li>
               <li>
-                Cada día llega un <b>mercado compartido</b> con {cfg.economy.playersPerMarket} jugadores y {cfg.economy.coachesMin === cfg.economy.coachesMax ? cfg.economy.coachesMin : `${cfg.economy.coachesMin}–${cfg.economy.coachesMax}`} entrenadores: todos los mánagers de la liga ven los mismos y cada uno solo puede tener un dueño.
+                Cada día llega un <b>mercado de subastas compartido</b> con {cfg.economy.playersPerMarket} jugadores y {cfg.economy.coachesMin === cfg.economy.coachesMax ? cfg.economy.coachesMin : `${cfg.economy.coachesMin}–${cfg.economy.coachesMax}`} entrenadores: todos los mánagers de la liga pujan por los mismos y cada jugador acaba con un único dueño en la liga.
               </li>
               <li>Tu plantilla admite hasta {cfg.economy.maxSquad} jugadores. Al vender recibes el {cfg.economy.sellPercent}% del valor actual del jugador.</li>
             </>

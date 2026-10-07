@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { intParam, parse } from '../lib/http';
 import { requireAuth } from '../middleware/auth';
 import * as market from '../services/market.service';
+import { listingBids } from '../services/auction.service';
 import * as cards from '../services/card.service';
 import * as challenges from '../services/challenge.service';
 import { listTransactions } from '../services/economy.service';
@@ -34,8 +35,19 @@ economyRouter.get('/market/league', async (req, res) => {
   res.json(await market.getMarketView(req.user!.id, activeLeague(req)));
 });
 
-economyRouter.post('/market/league/listings/:listingId/buy', actionLimiter, async (req, res) => {
-  res.status(201).json(await market.buyListing(req.user!.id, intParam(req.params.listingId, 'listingId')));
+// Estado ligero de las subastas: lo consulta la página cada pocos segundos para ver las pujas de los demás
+economyRouter.get('/market/league/pulse', async (req, res) => {
+  res.json(await market.getMarketPulse(req.user!.id, activeLeague(req)));
+});
+
+economyRouter.get('/market/league/listings/:listingId/bids', async (req, res) => {
+  res.json(await listingBids(intParam(req.params.listingId, 'listingId'), req.user!.id));
+});
+
+// Pujar: el importe lo valida siempre el servidor contra la puja real del momento
+economyRouter.post('/market/league/listings/:listingId/bid', actionLimiter, async (req, res) => {
+  const { amount } = parse(z.object({ amount: z.number().int().positive() }), req.body);
+  res.status(201).json(await market.bidOnListing(req.user!.id, intParam(req.params.listingId, 'listingId'), amount));
 });
 
 economyRouter.post('/market/league/players/:playerId/sell', actionLimiter, async (req, res) => {
@@ -69,7 +81,7 @@ economyRouter.patch('/leagues/:id/economy/schedule', async (req, res) => {
 economyRouter.get('/economy/transactions', async (req, res) => {
   const q = parse(z.object({ cursor: z.coerce.number().int().positive().optional(), take: z.coerce.number().int().min(1).max(100).optional() }), req.query);
   const team = await getTeamByUser(req.user!.id, activeLeague(req));
-  res.json({ economyVersion: team.economyVersion, wallet: team.wallet, budget: team.budget, ...(await listTransactions(team.id, q)) });
+  res.json({ economyVersion: team.economyVersion, wallet: team.wallet, reserved: team.reserved, budget: team.budget, ...(await listTransactions(team.id, q)) });
 });
 
 economyRouter.get('/players/:id/valuations', async (req, res) => {

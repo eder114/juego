@@ -4,7 +4,7 @@ import { getGameweekContext, syncGameweekStatuses } from './gameweek.service';
 import { processGameweek } from './scoring.service';
 import { syncFromProvider } from './import.service';
 import { notifyMany, type NotificationInput } from './notification.service';
-import { tickMarkets } from './market.service';
+import { settleDueCycles, tickMarkets } from './market.service';
 import { syncCoaches } from './coach.service';
 
 /**
@@ -98,6 +98,8 @@ export function startScheduler() {
     every(60_000, 'gameweeks', tickGameweeks),
     every(10 * 60_000, 'reminders', sendReminders),
     every(15 * 60_000, 'provider-sync', autoSync),
+    // Cierre de las subastas vencidas: adjudica, cobra y devuelve el dinero retenido antes de abrir el mercado nuevo
+    every(30_000, 'auction-settlement', settleDueCycles),
     // Mercado diario de cada liga: se genera en cuanto empieza el nuevo ciclo (también bajo demanda al abrir el mercado)
     every(60_000, 'league-markets', tickMarkets),
     every(24 * 3600_000, 'coaches-sync', dailyCoachSync),

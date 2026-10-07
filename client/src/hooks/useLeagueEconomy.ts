@@ -13,21 +13,27 @@ export function useLeagueEconomy() {
   const { withLeague } = useLeague();
 
   const invalidate = () => {
-    for (const key of ['league-market', 'team', 'dashboard', 'lineup', 'economy-tx', 'league', 'leagues', 'cards']) qc.invalidateQueries({ queryKey: [key] });
+    for (const key of ['league-market', 'market-pulse', 'team', 'dashboard', 'lineup', 'economy-tx', 'league', 'leagues', 'cards']) qc.invalidateQueries({ queryKey: [key] });
     void refresh();
   };
 
-  const buy = useMutation({
-    mutationFn: (listing: { id: number; name: string }) => api.post<{ wallet: number; price: number }>(`/market/league/listings/${listing.id}/buy`),
-    // El anuncio ya determina la liga: no hace falta enviarla
-    onSuccess: (res, l) => {
-      toast.push('success', `¡${l.name} fichado por ${moneyK(res.price)}! Te quedan ${moneyK(res.wallet)}`);
+  const bid = useMutation({
+    // La subasta ya determina la liga: no hace falta enviarla
+    mutationFn: (v: { id: number; name: string; amount: number }) =>
+      api.post<{ amount: number; available: number; reserved: number; minNext: number }>(`/market/league/listings/${v.id}/bid`, { amount: v.amount }),
+    onSuccess: (res, v) => {
+      toast.push('success', `Vas ganando a ${v.name} con ${moneyK(res.amount)}. Te quedan ${moneyK(res.available)} disponibles`);
       invalidate();
+      qc.invalidateQueries({ queryKey: ['auction-bids', v.id] });
     },
-    onError: (err) => {
+    onError: (err, v) => {
       toast.push('error', errorMessage(err));
-      // Si otro mánager se adelantó, el mercado se actualiza al momento
-      if (err instanceof ApiError && err.status === 409) qc.invalidateQueries({ queryKey: ['league-market'] });
+      // Si otro mánager se adelantó, el mercado se actualiza al momento para mostrar la puja real
+      if (err instanceof ApiError && err.status === 409) {
+        qc.invalidateQueries({ queryKey: ['league-market'] });
+        qc.invalidateQueries({ queryKey: ['market-pulse'] });
+        qc.invalidateQueries({ queryKey: ['auction-bids', v.id] });
+      }
     },
   });
 
@@ -58,5 +64,5 @@ export function useLeagueEconomy() {
     onError: (err) => toast.push('error', errorMessage(err)),
   });
 
-  return { buy, sellPlayer, sellCoach, join };
+  return { bid, sellPlayer, sellCoach, join };
 }

@@ -123,7 +123,7 @@ export function FeaturedPlayersPanel({ players }: { players: DashboardData['feat
           <DashEmpty
             className="w-full"
             title="Plantilla vacía"
-            description="Ficha jugadores para verlos aquí."
+            description="Puja por jugadores en el mercado para verlos aquí."
             action={
               <Link to="/market" className="btn-go h-10 px-5 text-sm">
                 Ir al mercado

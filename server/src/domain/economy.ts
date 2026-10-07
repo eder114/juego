@@ -418,12 +418,14 @@ export function minutesOfDayIn(date: Date, tz: string) {
 }
 
 /** Ventana del mercado vigente: empieza a la hora de reinicio local más reciente y dura hasta la siguiente. */
-export function marketCycleWindow(now: Date, tz: string, resetMinute: number) {
+export function marketCycleWindow(now: Date, tz: string, resetMinute: number, hours = 24) {
   const p = zonedParts(now, tz);
   let key = dateKey(p.year, p.month, p.day);
   if (p.hour * 60 + p.minute < resetMinute) key = shiftDate(key, -1);
   const [y, m, d] = key.split('-').map(Number);
   const startsAt = zonedTimeToUtc(y, m, d, resetMinute, tz);
+  if (hours !== 24) return { cycleDate: key, startsAt, endsAt: new Date(startsAt.getTime() + hours * 3600 * 1000) };
+  // 24 h exactas: el siguiente reinicio a la misma hora local, así el cambio de hora no desplaza el mercado
   const [ny, nm, nd] = shiftDate(key, 1).split('-').map(Number);
   const endsAt = zonedTimeToUtc(ny, nm, nd, resetMinute, tz);
   return { cycleDate: key, startsAt, endsAt };

@@ -24,6 +24,8 @@ export interface WalletChange {
   teamId: number;
   /** k£ con signo */
   amount: number;
+  /** El cargo sale de dinero ya reservado en una subasta: se descuenta a la vez de `reserved`. */
+  fromReserved?: boolean;
   type: EconomyTxType;
   description: string;
   userId?: string | null;
@@ -40,23 +42,51 @@ export async function claimOperation(tx: Tx, operationId: string | null | undefi
   if (operationId) await tx.economyOperationKey.create({ data: { key: operationId } });
 }
 
+/**
+ * Cargo condicional contra el dinero DISPONIBLE (saldo − reservado en subastas). La comparación la hace
+ * la base de datos en la misma sentencia, así que dos cargos simultáneos nunca pueden sobregirar la cuenta.
+ * Devuelve false si no había disponible suficiente.
+ */
+async function debitAvailable(tx: Tx, teamId: number, amount: number) {
+  const n = await tx.$executeRaw`UPDATE fantasy_teams SET wallet = wallet - ${amount} WHERE id = ${teamId} AND wallet - reserved >= ${amount}`;
+  return n > 0;
+}
+
+/** Cargo de dinero ya retenido por una puja ganadora: baja saldo y reserva a la vez. */
+async function debitReserved(tx: Tx, teamId: number, amount: number) {
+  const n = await tx.$executeRaw`UPDATE fantasy_teams SET wallet = wallet - ${amount}, reserved = reserved - ${amount} WHERE id = ${teamId} AND wallet >= ${amount} AND reserved >= ${amount}`;
+  return n > 0;
+}
+
+/**
+ * Retiene dinero para una puja (delta positivo) o libera lo retenido (delta negativo), siempre contra el
+ * disponible real. Devuelve false si el equipo no tiene bastante dinero libre.
+ */
+export async function changeReserved(tx: Tx, teamId: number, delta: number) {
+  if (delta === 0) return true;
+  const n =
+    delta > 0
+      ? await tx.$executeRaw`UPDATE fantasy_teams SET reserved = reserved + ${delta} WHERE id = ${teamId} AND wallet - reserved >= ${delta}`
+      : await tx.$executeRaw`UPDATE fantasy_teams SET reserved = reserved - ${-delta} WHERE id = ${teamId} AND reserved >= ${-delta}`;
+  return n > 0;
+}
+
 /** Aplica un cambio al monedero (k£) de forma atómica. Debe llamarse dentro de una transacción. */
 export async function changeWallet(tx: Tx, change: WalletChange) {
   await claimOperation(tx, change.operationId);
   if (change.amount < 0 && !change.allowNegative) {
-    // Actualización condicional: nunca deja el saldo por debajo de 0, ni con peticiones simultáneas
-    const updated = await tx.fantasyTeam.updateMany({
-      where: { id: change.teamId, wallet: { gte: -change.amount } },
-      data: { wallet: { increment: change.amount } },
-    });
-    if (updated.count === 0) {
-      const team = await tx.fantasyTeam.findUnique({ where: { id: change.teamId }, select: { wallet: true } });
-      throw badRequest(`Presupuesto insuficiente: necesitas ${formatK(-change.amount)} y tienes ${formatK(team?.wallet ?? 0)}`);
+    const ok = change.fromReserved ? await debitReserved(tx, change.teamId, -change.amount) : await debitAvailable(tx, change.teamId, -change.amount);
+    if (!ok) {
+      const team = await tx.fantasyTeam.findUnique({ where: { id: change.teamId }, select: { wallet: true, reserved: true } });
+      const available = (team?.wallet ?? 0) - (team?.reserved ?? 0);
+      const held = team?.reserved ? ` (tienes ${formatK(team.reserved)} comprometidos en pujas)` : '';
+      throw badRequest(`Presupuesto insuficiente: necesitas ${formatK(-change.amount)} y tienes ${formatK(available)} disponibles${held}`);
     }
   } else {
     await tx.fantasyTeam.update({ where: { id: change.teamId }, data: { wallet: { increment: change.amount } } });
   }
   const team = await tx.fantasyTeam.findUniqueOrThrow({ where: { id: change.teamId }, select: { wallet: true, userId: true } });
+  // `debitAvailable` escribe con SQL directo, así que el saldo posterior se lee de la fila ya actualizada
   await tx.transaction.create({
     data: {
       teamId: change.teamId,

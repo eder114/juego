@@ -24,6 +24,7 @@ if (hasDb) {
 type Mods = {
   prisma: typeof import('../src/lib/prisma')['prisma'];
   market: typeof import('../src/services/market.service');
+  auction: typeof import('../src/services/auction.service');
   leagues: typeof import('../src/services/league.service');
   squad: typeof import('../src/services/squad.service');
   cards: typeof import('../src/services/card.service');
@@ -47,11 +48,40 @@ async function createUser(label: string) {
 /** Equipo del mánager en una liga: cada liga tiene el suyo. */
 const teamOf = (userId: string, league = leagueId) => m.prisma.fantasyTeam.findFirstOrThrow({ where: { userId, leagueId: league } });
 
+/** Cierra el mercado de una liga adelantando su fin y liquidando sus subastas, como haría el servidor. */
+async function closeMarket(cycleId: number) {
+  await m.prisma.marketCycle.update({ where: { id: cycleId }, data: { endsAt: new Date(Date.now() - 1000) } });
+  return m.market.settleDueCycles();
+}
+
+/** Anuncio de un ciclo cuyo jugador cabe en la plantilla de todos los equipos indicados. */
+async function listingFor(cycleId: number, teamIds: number[], maxPrice = 100000, excludePlayers: number[] = []) {
+  const listings = await m.prisma.marketListing.findMany({
+    where: { cycleId, assetType: 'PLAYER', status: 'AVAILABLE', listingPrice: { lte: maxPrice }, playerId: { notIn: excludePlayers } },
+    include: { player: true },
+    orderBy: { listingPrice: 'asc' },
+  });
+  const squads = new Map<number, { clubId: number; position: string }[]>();
+  for (const id of teamIds) {
+    const rows = await m.prisma.fantasyTeamPlayer.findMany({ where: { teamId: id }, include: { player: true } });
+    squads.set(id, rows.map((r) => r.player));
+  }
+  // Límites reales configurados: así la prueba no descarta anuncios que el servidor sí aceptaría
+  const st = await m.settings.getSettings();
+  const perPosition: Record<string, number> = { GK: st.v2_max_gk, DEF: st.v2_max_def, MID: st.v2_max_mid, FWD: st.v2_max_fwd };
+  const fits = (squad: { clubId: number; position: string }[], pl: { clubId: number; position: string }) =>
+    squad.length < st.v2_max_squad &&
+    squad.filter((x) => x.clubId === pl.clubId).length < st.max_players_per_club &&
+    squad.filter((x) => x.position === pl.position).length < perPosition[pl.position];
+  return listings.find((l) => teamIds.every((id) => fits(squads.get(id)!, l.player!)));
+}
+
 describe.skipIf(!hasDb)('economía de liga (integración)', () => {
   beforeAll(async () => {
     m = {
       prisma: (await import('../src/lib/prisma')).prisma,
       market: await import('../src/services/market.service'),
+      auction: await import('../src/services/auction.service'),
       leagues: await import('../src/services/league.service'),
       squad: await import('../src/services/squad.service'),
       cards: await import('../src/services/card.service'),
@@ -159,30 +189,38 @@ describe.skipIf(!hasDb)('economía de liga (integración)', () => {
       await m.prisma.leaguePlayerOwnership.delete({ where: { id: inSecond.id } });
     });
 
-    it('comprar en una liga no cambia la plantilla ni el presupuesto de la otra', async () => {
+    it('pujar y ganar en una liga no cambia la plantilla ni el presupuesto de la otra', async () => {
       const cycle = await m.market.getCurrentCycle(secondLeagueId);
       const before = { first: await teamOf(owner(), leagueId), second: await teamOf(owner(), secondLeagueId) };
       const squadBefore = await m.prisma.fantasyTeamPlayer.count({ where: { teamId: before.first.id } });
-      const listing = await m.prisma.marketListing.findFirstOrThrow({
-        where: { cycleId: cycle.id, assetType: 'PLAYER', status: 'AVAILABLE', listingPrice: { lte: before.second.wallet } },
-        orderBy: { listingPrice: 'asc' },
-      });
-      await m.market.buyListing(owner(), listing.id);
+      // Se evita un jugador que este mánager ya tenga en la otra liga: ahí la prueba comprueba que sigue a 0
+      const enLaPrimera = (await m.prisma.leaguePlayerOwnership.findMany({ where: { leagueId }, select: { playerId: true } })).map((o) => o.playerId);
+      const listing = (await listingFor(cycle.id, [before.second.id], before.second.wallet, enLaPrimera))!;
+      expect(listing).toBeTruthy();
+
+      await m.market.bidOnListing(owner(), listing.id, listing.listingPrice);
+      // Mientras la subasta está viva el dinero queda retenido solo en el equipo de esa liga
+      expect((await teamOf(owner(), secondLeagueId)).reserved).toBe(listing.listingPrice);
+      expect((await teamOf(owner(), leagueId)).reserved).toBe(0);
+
+      await closeMarket(cycle.id);
       const after = { first: await teamOf(owner(), leagueId), second: await teamOf(owner(), secondLeagueId) };
       expect(after.second.wallet).toBe(before.second.wallet - listing.listingPrice);
+      expect(after.second.reserved).toBe(0);
       expect(after.first.wallet).toBe(before.first.wallet);
       expect(await m.prisma.fantasyTeamPlayer.count({ where: { teamId: after.first.id } })).toBe(squadBefore);
       expect(await m.prisma.fantasyTeamPlayer.count({ where: { teamId: after.second.id } })).toBe(14);
-      // El jugador comprado pertenece solo a la segunda liga
+      // El jugador adjudicado pertenece solo a la segunda liga
       expect(await m.prisma.leaguePlayerOwnership.count({ where: { playerId: listing.playerId!, leagueId } })).toBe(0);
       expect(await m.prisma.leaguePlayerOwnership.count({ where: { playerId: listing.playerId!, leagueId: secondLeagueId } })).toBe(1);
-      // Y no se puede volver a comprar en esa misma liga
-      await expect(m.market.buyListing(owner(), listing.id)).rejects.toThrow(m.market.SOLD_MESSAGE);
+      // Y la subasta cerrada ya no admite pujas
+      await expect(m.market.bidOnListing(owner(), listing.id, listing.listingPrice * 2)).rejects.toThrow(/mercado ha cerrado|subasta ya ha terminado/i);
     });
 
     it('vender en una liga no afecta a la otra', async () => {
       const second = await teamOf(owner(), secondLeagueId);
       const sold = await m.prisma.leaguePlayerOwnership.findFirstOrThrow({ where: { teamId: second.id, source: 'MARKET' } });
+      expect(sold.source).toBe('MARKET');
       const firstBefore = await teamOf(owner(), leagueId);
       await m.market.sellPlayerV2(owner(), sold.playerId, secondLeagueId);
       expect(await m.prisma.leaguePlayerOwnership.count({ where: { leagueId: secondLeagueId, playerId: sold.playerId } })).toBe(0);
@@ -313,52 +351,69 @@ describe.skipIf(!hasDb)('economía de liga (integración)', () => {
       expect(league.marketPityCounter).toBe(high ? 0 : cycle.pityBefore + 1);
     });
 
-    it('compra simultánea: solo un usuario consigue el jugador y al otro no se le cobra', async () => {
+    it('pujas simultáneas: solo una se convierte en la oferta más alta y solo ella retiene dinero', async () => {
       const cycle = await m.market.getCurrentCycle(leagueId);
       const [tb, tc] = [await teamOf(users[1].id), await teamOf(users[2].id)];
-      const listings = await m.prisma.marketListing.findMany({ where: { cycleId: cycle.id, assetType: 'PLAYER', status: 'AVAILABLE' }, include: { player: true }, orderBy: { listingPrice: 'asc' } });
-      // Un anuncio que ambos pueden comprar según su plantilla
-      const squadOf = async (teamId: number) => (await m.prisma.fantasyTeamPlayer.findMany({ where: { teamId }, include: { player: true } })).map((s) => s.player);
-      const [sb, sc] = [await squadOf(tb.id), await squadOf(tc.id)];
-      const fits = (squad: { clubId: number; position: string }[], p: { clubId: number; position: string }) =>
-        squad.filter((x) => x.clubId === p.clubId).length < 3 && squad.filter((x) => x.position === p.position).length < 5;
-      const target = listings.find((l) => l.listingPrice <= 100000 && fits(sb, l.player!) && fits(sc, l.player!));
+      const target = await listingFor(cycle.id, [tb.id, tc.id]);
       expect(target).toBeTruthy();
 
-      const results = await Promise.allSettled([m.market.buyListing(users[1].id, target!.id), m.market.buyListing(users[2].id, target!.id)]);
+      const amount = target!.listingPrice;
+      const results = await Promise.allSettled([m.market.bidOnListing(users[1].id, target!.id, amount), m.market.bidOnListing(users[2].id, target!.id, amount)]);
       const ok = results.filter((r) => r.status === 'fulfilled');
       const failed = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
       expect(ok).toHaveLength(1);
       expect(failed).toHaveLength(1);
-      expect(failed[0].reason.message).toBe(m.market.SOLD_MESSAGE);
+      // La segunda puja no vale: o llegó tarde a la comparación, o ya no superaba a la primera
+      expect(failed[0].reason.message).toMatch(/pujado más alto|tienes que ofrecer al menos/i);
 
       const listing = await m.prisma.marketListing.findUniqueOrThrow({ where: { id: target!.id } });
-      expect(listing.status).toBe('SOLD');
-      const winnerTeam = listing.buyerTeamId === tb.id ? tb : tc;
-      const loserTeam = winnerTeam.id === tb.id ? tc : tb;
-      expect((await m.prisma.fantasyTeam.findUniqueOrThrow({ where: { id: winnerTeam.id } })).wallet).toBe(100000 - target!.listingPrice);
-      expect((await m.prisma.fantasyTeam.findUniqueOrThrow({ where: { id: loserTeam.id } })).wallet).toBe(100000);
-      expect(await m.prisma.leaguePlayerOwnership.count({ where: { leagueId, playerId: target!.playerId! } })).toBe(1);
-      expect(await m.prisma.transaction.count({ where: { reference: `listing:${target!.id}` } })).toBe(1);
-      const rejected = await m.prisma.marketAuditLog.count({ where: { leagueId, action: 'PURCHASE_REJECTED' } });
-      expect(rejected).toBeGreaterThanOrEqual(1);
-      // Un tercer intento sobre el anuncio vendido también falla con el mensaje claro
-      await expect(m.market.buyListing(users[3].id, target!.id)).rejects.toThrow(m.market.SOLD_MESSAGE);
+      expect(listing.topBid).toBe(amount);
+      expect(listing.status).toBe('AVAILABLE'); // la subasta sigue abierta hasta que cierre el mercado
+      const leader = listing.topBidTeamId === tb.id ? tb : tc;
+      const other = leader.id === tb.id ? tc : tb;
+      const [leaderNow, otherNow] = [await m.prisma.fantasyTeam.findUniqueOrThrow({ where: { id: leader.id } }), await m.prisma.fantasyTeam.findUniqueOrThrow({ where: { id: other.id } })];
+      expect(leaderNow.reserved).toBe(amount);
+      expect(leaderNow.wallet).toBe(100000); // todavía no se ha cobrado nada
+      expect(otherNow.reserved).toBe(0);
+      expect(await m.prisma.marketBid.count({ where: { listingId: target!.id } })).toBe(1);
+      // Liberar la subasta para no condicionar al resto de pruebas de este mercado
+      await m.prisma.$transaction(async (tx) => {
+        await m.auction.withdrawTeamFromAuctions(tx, leader.id);
+      });
     });
 
-    it('sin presupuesto la compra se rechaza y el anuncio sigue disponible (la transacción se deshace)', async () => {
+    it('sin dinero disponible la puja se rechaza y la subasta no cambia', async () => {
       const cycle = await m.market.getCurrentCycle(leagueId);
       const td = await teamOf(users[3].id);
       await m.prisma.fantasyTeam.update({ where: { id: td.id }, data: { wallet: 100 } });
-      const listing = await m.prisma.marketListing.findFirstOrThrow({ where: { cycleId: cycle.id, status: 'AVAILABLE', listingPrice: { gt: 100 } } });
-      await expect(m.market.buyListing(users[3].id, listing.id)).rejects.toThrow(/Presupuesto insuficiente/);
-      expect((await m.prisma.marketListing.findUniqueOrThrow({ where: { id: listing.id } })).status).toBe('AVAILABLE');
-      expect((await m.prisma.fantasyTeam.findUniqueOrThrow({ where: { id: td.id } })).wallet).toBe(100);
+      const listing = (await listingFor(cycle.id, [td.id]))!;
+      expect(listing).toBeTruthy();
+      await expect(m.market.bidOnListing(users[3].id, listing.id, listing.listingPrice)).rejects.toThrow(/Te faltan/);
+      const after = await m.prisma.marketListing.findUniqueOrThrow({ where: { id: listing.id } });
+      expect(after.status).toBe('AVAILABLE');
+      expect(after.topBid).toBeNull();
+      expect((await m.prisma.fantasyTeam.findUniqueOrThrow({ where: { id: td.id } })).reserved).toBe(0);
       await m.prisma.fantasyTeam.update({ where: { id: td.id }, data: { wallet: 100000 } });
     });
 
     it('venta: devuelve el valor al monedero, libera al jugador y aplica el cooldown', async () => {
-      const buyer = await m.prisma.leaguePlayerOwnership.findFirstOrThrow({ where: { leagueId, source: 'MARKET' }, include: { team: true, player: true } });
+      // Un jugador de más en la plantilla (como el que deja una subasta ganada): venderlo deja un once válido
+      const team = await teamOf(users[0].id);
+      const owned = new Set((await m.prisma.leaguePlayerOwnership.findMany({ where: { leagueId }, select: { playerId: true } })).map((o) => o.playerId));
+      const squad = await m.prisma.fantasyTeamPlayer.findMany({ where: { teamId: team.id }, include: { player: true } });
+      const extra = await m.prisma.player.findFirstOrThrow({
+        where: {
+          isActive: true,
+          marketValue: { not: null },
+          id: { notIn: [...owned] },
+          position: 'MID',
+          clubId: { notIn: [...new Set(squad.map((x) => x.player.clubId))] },
+        },
+      });
+      await m.prisma.leaguePlayerOwnership.create({ data: { leagueId, playerId: extra.id, teamId: team.id, purchasePrice: extra.marketValue!, source: 'MARKET' } });
+      await m.prisma.fantasyTeamPlayer.create({ data: { teamId: team.id, playerId: extra.id, purchasePrice: extra.price } });
+
+      const buyer = await m.prisma.leaguePlayerOwnership.findFirstOrThrow({ where: { leagueId, playerId: extra.id }, include: { team: true, player: true } });
       const before = buyer.team.wallet;
       const result = await m.market.sellPlayerV2(buyer.team.userId, buyer.playerId, leagueId);
       expect(result.salePrice).toBe(buyer.player.marketValue);
@@ -373,6 +428,269 @@ describe.skipIf(!hasDb)('economía de liga (integración)', () => {
       expect(nextListings.some((l) => l.playerId === buyer.playerId)).toBe(false);
       expect(next.startsAt.getTime()).toBeGreaterThan(Date.now());
       await m.prisma.marketCycle.delete({ where: { id: next.id } });
+    });
+  });
+
+  /**
+   * Flujo completo de una subasta en su propia liga, para no condicionar al resto de pruebas:
+   * guerra de pujas, cierre del mercado, adjudicación, devoluciones y mercado siguiente.
+   */
+  describe('subastas: flujo completo', () => {
+    let auctionLeague = 0;
+    let cycleId = 0;
+    let listingId = 0;
+    let playerId = 0;
+    let start = 0;
+    let increment = 0;
+    const teams: Record<string, number> = {};
+    // Eder, Carlos y Juan son users[0], users[1] y users[2]
+    const eder = () => users[0].id;
+    const carlos = () => users[1].id;
+    const juan = () => users[2].id;
+    const wallet = (id: number) => m.prisma.fantasyTeam.findUniqueOrThrow({ where: { id }, select: { wallet: true, reserved: true } });
+
+    beforeAll(async () => {
+      const league = await m.leagues.createLeague(eder(), { name: 'QA Liga Subastas', type: 'PRIVATE', maxMembers: 10 });
+      auctionLeague = league.id;
+      for (const u of [carlos(), juan(), users[3].id]) await m.leagues.joinByCode(u, league.code);
+      for (const [k, u] of Object.entries({ eder: eder(), carlos: carlos(), juan: juan() })) teams[k] = (await teamOf(u, auctionLeague)).id;
+      const cycle = await m.market.getCurrentCycle(auctionLeague);
+      cycleId = cycle.id;
+      const listing = await listingFor(cycleId, Object.values(teams), 80000);
+      expect(listing).toBeTruthy();
+      listingId = listing!.id;
+      playerId = listing!.playerId!;
+      start = listing!.listingPrice;
+      increment = (await m.settings.getSettings()).market_min_increment;
+    }, 60_000);
+
+    it('caso 1 · la primera puja arranca en el precio de salida y retiene el dinero', async () => {
+      await expect(m.market.bidOnListing(eder(), listingId, start - 1)).rejects.toThrow(/puja mínima/i);
+      const res = await m.market.bidOnListing(eder(), listingId, start);
+      expect(res.amount).toBe(start);
+      const t = await wallet(teams.eder);
+      expect(t.reserved).toBe(start);
+      expect(t.wallet).toBe(100000); // retenido, todavía no cobrado
+      expect(res.available).toBe(100000 - start);
+      const listing = await m.prisma.marketListing.findUniqueOrThrow({ where: { id: listingId } });
+      expect(listing.topBidTeamId).toBe(teams.eder);
+      expect(listing.bidCount).toBe(1);
+      expect(listing.bidderCount).toBe(1);
+    });
+
+    it('caso 2 · al ser superado, el dinero del anterior líder se libera al instante', async () => {
+      // No vale igualar ni quedarse por debajo de la subida mínima
+      await expect(m.market.bidOnListing(carlos(), listingId, start)).rejects.toThrow(/al menos/i);
+      await expect(m.market.bidOnListing(carlos(), listingId, start + increment - 1)).rejects.toThrow(/al menos/i);
+
+      await m.market.bidOnListing(carlos(), listingId, start + increment);
+      expect((await wallet(teams.eder)).reserved).toBe(0);
+      expect((await wallet(teams.carlos)).reserved).toBe(start + increment);
+      // El historial conserva las dos pujas y marca la anterior como superada
+      const bids = await m.prisma.marketBid.findMany({ where: { listingId }, orderBy: { id: 'asc' } });
+      expect(bids).toHaveLength(2);
+      expect(bids[0].status).toBe('OUTBID');
+      expect(bids[1].status).toBe('ACTIVE');
+    });
+
+    it('caso 3 · volver a pujar siendo líder solo retiene la diferencia', async () => {
+      const big = start + increment * 4;
+      await m.market.bidOnListing(eder(), listingId, big); // recupera el liderato
+      expect((await wallet(teams.eder)).reserved).toBe(big);
+      expect((await wallet(teams.carlos)).reserved).toBe(0);
+
+      const bigger = big + increment * 2;
+      await m.market.bidOnListing(eder(), listingId, bigger); // sube su propia puja
+      const t = await wallet(teams.eder);
+      expect(t.reserved).toBe(bigger); // no se suman las dos pujas: solo la diferencia
+      expect(t.wallet - t.reserved).toBe(100000 - bigger);
+    });
+
+    it('caso 4 · un tercer mánager se pone líder y deja libre al anterior', async () => {
+      const listing = await m.prisma.marketListing.findUniqueOrThrow({ where: { id: listingId } });
+      await m.market.bidOnListing(juan(), listingId, listing.topBid! + increment);
+      expect((await wallet(teams.juan)).reserved).toBe(listing.topBid! + increment);
+      expect((await wallet(teams.eder)).reserved).toBe(0);
+      expect((await m.prisma.marketListing.findUniqueOrThrow({ where: { id: listingId } })).bidderCount).toBe(3);
+    });
+
+    it('un doble clic no duplica la misma puja', async () => {
+      const listing = await m.prisma.marketListing.findUniqueOrThrow({ where: { id: listingId } });
+      const before = await m.prisma.marketBid.count({ where: { listingId } });
+      await expect(m.market.bidOnListing(juan(), listingId, listing.topBid!)).rejects.toThrow();
+      expect(await m.prisma.marketBid.count({ where: { listingId } })).toBe(before);
+    });
+
+    it('no se puede comprometer dinero ya reservado en otra subasta', async () => {
+      const otra = await listingFor(cycleId, [teams.juan], 100000);
+      const juanTeam = await wallet(teams.juan);
+      const disponible = juanTeam.wallet - juanTeam.reserved;
+      if (otra && otra.id !== listingId && otra.listingPrice > disponible) {
+        await expect(m.market.bidOnListing(juan(), otra.id, otra.listingPrice)).rejects.toThrow(/Te faltan/);
+      }
+      // Con una cantidad por encima del disponible siempre debe fallar
+      await expect(m.market.bidOnListing(juan(), listingId, juanTeam.wallet + 1000)).rejects.toThrow(/Te faltan/);
+    });
+
+    it('no se puede pujar en una liga a la que no perteneces', async () => {
+      const extraño = await createUser('Extraño');
+      await expect(m.market.bidOnListing(extraño.id, listingId, 1_000_000)).rejects.toThrow();
+    });
+
+    it('caso 12-13 · el estado de la subasta se conserva al recargar o reabrir', async () => {
+      const view = await m.market.getMarketView(juan(), auctionLeague);
+      if (view.mode !== 'LEAGUE') throw new Error('modo inesperado');
+      const card = view.players.find((x) => x.id === listingId)!;
+      const listing = await m.prisma.marketListing.findUniqueOrThrow({ where: { id: listingId } });
+      expect(card.topBid).toBe(listing.topBid);
+      expect(card.leading).toBe(true);
+      expect(card.myBid).toBe(listing.topBid);
+      expect(card.minNextBid).toBe(listing.topBid! + increment);
+      // El latido ligero devuelve exactamente lo mismo
+      const pulse = await m.market.getMarketPulse(juan(), auctionLeague);
+      if (pulse.mode !== 'LEAGUE') throw new Error('modo inesperado');
+      const live = pulse.auctions.find((a) => a.id === listingId);
+      expect(live?.topBid).toBe(listing.topBid);
+      expect(live?.leading).toBe(true);
+      // Y el rival lo ve igual, pero marcado como superado
+      const rival = await m.market.getMarketView(eder(), auctionLeague);
+      if (rival.mode !== 'LEAGUE') throw new Error('modo inesperado');
+      const rivalCard = rival.players.find((x) => x.id === listingId)!;
+      expect(rivalCard.topBid).toBe(listing.topBid);
+      expect(rivalCard.leading).toBe(false);
+      expect(rivalCard.outbid).toBe(true);
+    });
+
+    it('caso 5-7 · al cerrar el mercado gana la puja más alta, se le cobra y los demás recuperan todo', async () => {
+      const listing = await m.prisma.marketListing.findUniqueOrThrow({ where: { id: listingId } });
+      const finalPrice = listing.topBid!;
+      expect(finalPrice).toBeGreaterThan(listing.listingPrice); // el precio final no es el de salida
+
+      const result = await closeMarket(cycleId);
+      expect(result.cycles).toBeGreaterThanOrEqual(1);
+
+      const closed = await m.prisma.marketListing.findUniqueOrThrow({ where: { id: listingId } });
+      expect(closed.status).toBe('SOLD');
+      expect(closed.finalPrice).toBe(finalPrice);
+      expect(closed.buyerTeamId).toBe(teams.juan);
+      expect(closed.settledAt).not.toBeNull();
+
+      // Caso 6: el jugador pasa al equipo del ganador dentro de ESA liga
+      expect(await m.prisma.leaguePlayerOwnership.count({ where: { leagueId: auctionLeague, playerId, teamId: teams.juan } })).toBe(1);
+      expect(await m.prisma.fantasyTeamPlayer.count({ where: { teamId: teams.juan, playerId } })).toBe(1);
+
+      // El ganador paga exactamente su puja y deja de tener dinero retenido
+      const juanTeam = await wallet(teams.juan);
+      expect(juanTeam.wallet).toBe(100000 - finalPrice);
+      expect(juanTeam.reserved).toBe(0);
+      const tx = await m.prisma.transaction.findMany({ where: { teamId: teams.juan, reference: `listing:${listingId}` } });
+      expect(tx).toHaveLength(1);
+      expect(tx[0].amount).toBe(-finalPrice);
+
+      // Caso 7: los perdedores conservan íntegro su presupuesto
+      for (const key of ['eder', 'carlos']) {
+        const t = await wallet(teams[key]);
+        expect(t.wallet).toBe(100000);
+        expect(t.reserved).toBe(0);
+      }
+      expect(await m.prisma.budgetReservation.count({ where: { listingId, status: 'HELD' } })).toBe(0);
+      const bids = await m.prisma.marketBid.findMany({ where: { listingId } });
+      expect(bids.filter((b) => b.status === 'WON')).toHaveLength(1);
+      expect(bids.filter((b) => b.status === 'LOST').length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('la liquidación es idempotente: repetirla no cobra ni adjudica dos veces', async () => {
+      const before = await wallet(teams.juan);
+      await m.market.settleDueCycles();
+      await m.auction.settleCycle(cycleId, m.market.settleHooks, new Date());
+      const after = await wallet(teams.juan);
+      expect(after.wallet).toBe(before.wallet);
+      expect(await m.prisma.leaguePlayerOwnership.count({ where: { leagueId: auctionLeague, playerId } })).toBe(1);
+      expect(await m.prisma.transaction.count({ where: { teamId: teams.juan, reference: `listing:${listingId}` } })).toBe(1);
+    });
+
+    it('caso 11 y 14 · después del cierre no se admite ninguna puja más', async () => {
+      await expect(m.market.bidOnListing(eder(), listingId, 90000)).rejects.toThrow(/mercado ha cerrado|subasta ya ha terminado/i);
+      const otra = await m.prisma.marketListing.findFirst({ where: { cycleId, status: 'UNSOLD' } });
+      if (otra) await expect(m.market.bidOnListing(eder(), otra.id, otra.listingPrice)).rejects.toThrow(/mercado ha cerrado|subasta ya ha terminado/i);
+    });
+
+    it('las subastas sin pujas quedan desiertas y no cobran a nadie', async () => {
+      const desiertas = await m.prisma.marketListing.findMany({ where: { cycleId, status: 'UNSOLD' } });
+      expect(desiertas.length).toBeGreaterThan(0);
+      for (const d of desiertas) {
+        expect(d.finalPrice).toBeNull();
+        expect(d.buyerTeamId).toBeNull();
+        expect(await m.prisma.leaguePlayerOwnership.count({ where: { leagueId: auctionLeague, playerId: d.playerId ?? -1 } })).toBe(0);
+      }
+    });
+
+    it('caso 15 · el mercado siguiente se genera solo, con subastas nuevas y abiertas', async () => {
+      const next = await m.market.getCurrentCycle(auctionLeague);
+      expect(next.id).not.toBe(cycleId);
+      expect(next.startsAt.getTime()).toBeLessThanOrEqual(Date.now());
+      expect(next.endsAt.getTime()).toBeGreaterThan(Date.now());
+      const listings = await m.prisma.marketListing.findMany({ where: { cycleId: next.id } });
+      expect(listings.length).toBeGreaterThan(0);
+      expect(listings.every((l) => l.status === 'AVAILABLE' && l.topBid === null && l.bidCount === 0)).toBe(true);
+      // El jugador ya adjudicado no vuelve a salir en esa liga
+      expect(listings.some((l) => l.playerId === playerId)).toBe(false);
+      // Y todas las subastas del mercado terminan exactamente a la vez
+      expect(new Set(listings.map(() => next.endsAt.getTime())).size).toBe(1);
+      cycleId = next.id;
+    });
+
+    it('caso 8-9 · el mismo jugador se subasta en otra liga y los presupuestos son independientes', async () => {
+      const otraLiga = await m.leagues.createLeague(users[3].id, { name: 'QA Liga Subastas 2', type: 'PRIVATE', maxMembers: 10 });
+      await m.leagues.joinByCode(juan(), otraLiga.code);
+      const cycle2 = await m.market.getCurrentCycle(otraLiga.id);
+      // El jugador que Juan ya tiene en la primera liga está libre en esta: se le crea su subasta
+      const slot = await m.prisma.marketListing.count({ where: { cycleId: cycle2.id } });
+      const player = await m.prisma.player.findUniqueOrThrow({ where: { id: playerId } });
+      expect(await m.prisma.leaguePlayerOwnership.count({ where: { leagueId: otraLiga.id, playerId } })).toBe(0);
+      const propiedadesAntes = await m.prisma.leaguePlayerOwnership.count({ where: { playerId } });
+      // El mercado de esta liga puede haberlo sacado ya por su cuenta: en ese caso se usa esa subasta
+      const listing2 =
+        (await m.prisma.marketListing.findFirst({ where: { cycleId: cycle2.id, playerId } })) ??
+        (await m.prisma.marketListing.create({
+          data: { cycleId: cycle2.id, leagueId: otraLiga.id, assetType: 'PLAYER', playerId, rarity: player.rarity, listingPrice: start, slot },
+        }));
+
+      // Puja el miembro de esta liga en cuya plantilla quepa el jugador (las plantillas son aleatorias)
+      const st = await m.settings.getSettings();
+      const perPosition: Record<string, number> = { GK: st.v2_max_gk, DEF: st.v2_max_def, MID: st.v2_max_mid, FWD: st.v2_max_fwd };
+      let postor: string | null = null;
+      for (const u of [juan(), users[3].id]) {
+        const team = await teamOf(u, otraLiga.id);
+        const squad = (await m.prisma.fantasyTeamPlayer.findMany({ where: { teamId: team.id }, include: { player: true } })).map((r) => r.player);
+        const cabe =
+          squad.length < st.v2_max_squad &&
+          squad.filter((x) => x.clubId === player.clubId).length < st.max_players_per_club &&
+          squad.filter((x) => x.position === player.position).length < perPosition[player.position];
+        if (cabe) {
+          postor = u;
+          break;
+        }
+      }
+      expect(postor).toBeTruthy();
+      const equipoPostor = await teamOf(postor!, otraLiga.id);
+      const reservaPrimeraLiga = postor === juan() ? (await wallet((await teamOf(juan(), auctionLeague)).id)).reserved : null;
+
+      await m.market.bidOnListing(postor!, listing2.id, listing2.listingPrice);
+      // La puja retiene dinero solo en el equipo de esta liga
+      expect((await wallet(equipoPostor.id)).reserved).toBe(listing2.listingPrice);
+      if (reservaPrimeraLiga !== null) expect((await wallet((await teamOf(juan(), auctionLeague)).id)).reserved).toBe(reservaPrimeraLiga);
+
+      await closeMarket(cycle2.id);
+      // El mismo jugador pertenece ahora a dos equipos distintos, uno en cada liga
+      expect(await m.prisma.leaguePlayerOwnership.count({ where: { leagueId: otraLiga.id, playerId, teamId: equipoPostor.id } })).toBe(1);
+      expect(await m.prisma.leaguePlayerOwnership.count({ where: { leagueId: auctionLeague, playerId, teamId: teams.juan } })).toBe(1);
+      expect(await m.prisma.leaguePlayerOwnership.count({ where: { playerId } })).toBe(propiedadesAntes + 1);
+      // Y dentro de una misma liga sigue habiendo un único dueño
+      const otroMiembro = await teamOf(postor === juan() ? users[3].id : juan(), otraLiga.id);
+      await expect(
+        m.prisma.leaguePlayerOwnership.create({ data: { leagueId: otraLiga.id, playerId, teamId: otroMiembro.id, purchasePrice: 1, source: 'MARKET' } }),
+      ).rejects.toThrow();
     });
   });
 

@@ -43,7 +43,7 @@ export function LeagueEconomyPanel({ leagueId, economy, isMember, canManage }: {
     <Card>
       <CardHeader
         title="Economía de la liga"
-        subtitle={`Mercado compartido · se renueva cada día a las ${economy.resetTime} (${economy.timezone})`}
+        subtitle={`Subastas compartidas · el mercado cierra cada día a las ${economy.resetTime} (${economy.timezone})`}
         icon={<Coins className="size-5" />}
         action={
           canManage && (
@@ -57,12 +57,12 @@ export function LeagueEconomyPanel({ leagueId, economy, isMember, canManage }: {
         {isMember && economy.myStatus === 'PLAYING' && (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-pitch-500/10 px-4 py-3">
             <p className="text-sm text-pitch-200">Juegas la economía de esta liga: tu plantilla y tu presupuesto pertenecen a esta partida.</p>
-            <Link to="/market"><Button size="sm" icon={<ShoppingBag className="size-3.5" />}>Mercado de hoy</Button></Link>
+            <Link to="/market"><Button size="sm" icon={<ShoppingBag className="size-3.5" />}>Subastas de hoy</Button></Link>
           </div>
         )}
         {isMember && economy.myStatus === 'CAN_JOIN' && (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-white/[0.05] px-4 py-3">
-            <p className="text-sm text-slate-200">Entra en la economía de la liga: recibirás {terms.players} al azar y {terms.budget} para el mercado diario.</p>
+            <p className="text-sm text-slate-200">Entra en la economía de la liga: recibirás {terms.players} al azar y {terms.budget} para pujar en las subastas diarias.</p>
             <Button size="sm" loading={join.isPending} onClick={() => join.mutate({ leagueId })}>Recibir mi equipo</Button>
           </div>
         )}
@@ -107,7 +107,7 @@ export function LeagueEconomyPanel({ leagueId, economy, isMember, canManage }: {
           <Field label="Zona horaria (IANA)" hint="Por ejemplo Europe/London, Europe/Madrid o America/Bogota">
             <Input value={timezone} onChange={(e) => setTimezone(e.target.value)} />
           </Field>
-          <p className="text-xs text-slate-400">El cambio se aplica a partir del próximo mercado: el de hoy se mantiene hasta su hora de cierre.</p>
+          <p className="text-xs text-slate-400">El cambio se aplica a partir del próximo mercado: las subastas de hoy se mantienen hasta su hora de cierre.</p>
         </div>
       </Modal>
     </Card>

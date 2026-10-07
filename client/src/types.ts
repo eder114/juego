@@ -87,6 +87,8 @@ export interface TeamSummary {
   budget: number;
   /** Economía de liga: miles de £ */
   wallet: number;
+  /** k£ retenidos por pujas que este equipo va ganando */
+  reserved: number;
   totalPoints: number;
   economyVersion: 1 | 2;
   createdAt: string;
@@ -128,21 +130,75 @@ export interface ValueTrend {
   gameweekId?: number | null;
 }
 
+export type AuctionStatus = 'OPEN' | 'SOLD' | 'UNSOLD' | 'UNAVAILABLE';
+
+/** Una subasta del mercado de la liga: abre y cierra con el ciclo, nunca se compra directamente. */
 export interface MarketListing {
   id: number;
   assetType: 'PLAYER' | 'COACH';
   rarity: Rarity;
-  listingPrice: number;
+  /** Precio de salida: la puja más alta al cierre decide el precio final. */
+  startingPrice: number;
   slot: number;
-  status: 'AVAILABLE' | 'SOLD' | 'UNAVAILABLE';
+  status: AuctionStatus;
+  topBid: number | null;
+  topBidder: { teamName: string; managerName: string } | null;
+  /** El usuario va ganando esta subasta. */
+  leading: boolean;
+  /** El usuario pujó pero otro mánager le ha superado. */
+  outbid: boolean;
+  myBid: number | null;
+  bidCount: number;
+  bidderCount: number;
+  minNextBid: number;
+  finalPrice: number | null;
   soldAt: string | null;
-  buyer: { teamName: string; managerName: string } | null;
-  boughtByMe: boolean;
-  canBuy: boolean;
+  winner: { teamName: string; managerName: string } | null;
+  wonByMe: boolean;
+  canBid: boolean;
   blockReason: string | null;
   player: Player | null;
   coach: Coach | null;
   trend: ValueTrend | null;
+}
+
+export interface AuctionBid {
+  id: number;
+  amount: number;
+  status: 'ACTIVE' | 'OUTBID' | 'WON' | 'LOST' | 'CANCELLED';
+  createdAt: string;
+  teamId: number;
+  teamName: string;
+  managerName: string;
+}
+
+export interface AuctionBidHistory {
+  listing: { id: number; startingPrice: number; topBid: number | null; status: string; finalPrice: number | null };
+  bids: AuctionBid[];
+}
+
+/** Estado ligero de las subastas, consultado cada pocos segundos mientras se mira el mercado. */
+export interface MarketPulse {
+  mode: 'LEAGUE' | 'CLASSIC';
+  serverTime: string;
+  cycleId?: number | null;
+  endsAt?: string | null;
+  settled?: boolean;
+  wallet?: number;
+  reserved?: number;
+  available?: number;
+  auctions?: {
+    id: number;
+    status: 'OPEN' | 'SOLD' | 'UNSOLD';
+    topBid: number | null;
+    leading: boolean;
+    myBid: number | null;
+    bidCount: number;
+    bidderCount: number;
+    minNextBid: number;
+    finalPrice: number | null;
+    wonByMe: boolean;
+  }[];
 }
 
 export type LeagueMarket =
@@ -154,8 +210,14 @@ export type LeagueMarket =
       league: { id: number; name: string; timezone: string; resetTime: string; participants: number; pityCounter: number };
       cycle: { id: number; cycleDate: string; startsAt: string; endsAt: string };
       wallet: number;
+      /** k£ retenidos por las pujas que el usuario va ganando. */
+      reserved: number;
+      /** wallet − reserved: lo que realmente puede comprometer. */
+      available: number;
+      minIncrement: number;
       marketOpen: boolean;
       squadCount: number;
+      leadingCount: number;
       coachCount: number;
       limits: { maxSquad: number; perPosition: Record<Position, number>; maxPerClub: number; maxCoaches: number };
       players: MarketListing[];
@@ -308,6 +370,8 @@ export interface Squad {
 
 export interface SquadEconomy {
   wallet: number;
+  reserved: number;
+  available: number;
   league: { id: number; name: string } | null;
   squadValue: number;
   sellPercent: number;

@@ -272,7 +272,9 @@ export default function AppLayout() {
                 className="hidden h-10 items-center gap-2.5 rounded-lg bg-[#101d25]/90 px-4 text-sm shadow-[0_6px_18px_-8px_rgb(0_0_0/0.6)] transition hover:bg-[#15272f] sm:flex"
               >
                 <Wallet aria-hidden className="size-4 text-white/80" />
-                <span className="font-bold tabular-nums text-white">{activeTeam.economyVersion === 2 ? moneyK(activeTeam.wallet) : money(activeTeam.budget)}</span>
+                <span className="font-bold tabular-nums text-white" title={activeTeam.economyVersion === 2 && activeTeam.reserved ? `${moneyK(activeTeam.reserved)} comprometidos en pujas` : undefined}>
+                  {activeTeam.economyVersion === 2 ? moneyK(activeTeam.wallet - activeTeam.reserved) : money(activeTeam.budget)}
+                </span>
               </Link>
             )}
             <NotificationBell />

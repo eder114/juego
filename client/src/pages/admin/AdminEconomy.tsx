@@ -29,7 +29,25 @@ interface AuditRow {
 }
 interface LeagueDetail {
   league: { id: number; name: string; economyVersion: number };
-  current: { cycle: { cycleDate: string; startsAt: string; endsAt: string }; listings: { id: number; assetType: string; rarity: string; listingPrice: number; status: string; player: { displayName: string; position: string; club: { shortName: string } } | null; coach: { displayName: string } | null }[] } | null;
+  current: {
+    cycle: { cycleDate: string; startsAt: string; endsAt: string; settledAt: string | null };
+    listings: {
+      id: number;
+      assetType: string;
+      rarity: string;
+      /** Precio de salida de la subasta */
+      listingPrice: number;
+      status: string;
+      topBid: number | null;
+      topBidTeam: string | null;
+      bidCount: number;
+      bidderCount: number;
+      finalPrice: number | null;
+      buyerTeam: string | null;
+      player: { displayName: string; position: string; club: { shortName: string } } | null;
+      coach: { displayName: string } | null;
+    }[];
+  } | null;
   audit: AuditRow[];
 }
 interface TeamRow {
@@ -44,6 +62,11 @@ interface TeamRow {
 
 const ACTION_LABEL: Record<string, string> = {
   CYCLE_GENERATED: 'Mercado generado',
+  BID: 'Puja',
+  AUCTION_WON: 'Subasta adjudicada',
+  AUCTION_UNSOLD: 'Subasta desierta',
+  AUCTION_VOID: 'Subasta anulada',
+  AUCTION_SETTLE_FAILED: 'Cierre con incidencia',
   PURCHASE: 'Compra',
   PURCHASE_REJECTED: 'Compra rechazada',
   SALE: 'Venta',
@@ -148,14 +171,23 @@ function LeaguesTab({ leagues }: { leagues: Overview['leagues'] }) {
                     <LoadingBlock />
                   ) : leagueDetail.data.current ? (
                     <>
-                      <p className="label mb-2">Mercado {leagueDetail.data.current.cycle.cycleDate} · cierra {dateTime(leagueDetail.data.current.cycle.endsAt)}</p>
+                      <p className="label mb-2">Subastas del {leagueDetail.data.current.cycle.cycleDate} · cierran {dateTime(leagueDetail.data.current.cycle.endsAt)}</p>
                       <ul className="grid gap-1.5 text-sm sm:grid-cols-2">
                         {leagueDetail.data.current.listings.map((li) => (
                           <li key={li.id} className="flex items-center gap-2">
                             <RarityBadge rarity={li.rarity} />
-                            <span className="min-w-0 flex-1 truncate text-white">{li.player ? `${li.player.displayName} (${li.player.position}, ${li.player.club.shortName})` : `Entrenador: ${li.coach?.displayName}`}</span>
-                            <span className="tabular-nums text-slate-300">{moneyK(li.listingPrice)}</span>
-                            <Badge tone={li.status === 'SOLD' ? 'red' : 'green'}>{li.status === 'SOLD' ? 'Vendido' : 'Disponible'}</Badge>
+                            <span className="min-w-0 flex-1 truncate text-white">
+                              {li.player ? `${li.player.displayName} (${li.player.position}, ${li.player.club.shortName})` : `Entrenador: ${li.coach?.displayName}`}
+                            </span>
+                            <span
+                              className="tabular-nums text-slate-300"
+                              title={`Salida ${moneyK(li.listingPrice)} · ${li.bidCount} puja(s) de ${li.bidderCount} mánager(s)`}
+                            >
+                              {li.status === 'SOLD' ? moneyK(li.finalPrice ?? 0) : li.topBid !== null ? moneyK(li.topBid) : moneyK(li.listingPrice)}
+                            </span>
+                            <Badge tone={li.status === 'SOLD' ? 'violet' : li.status === 'UNSOLD' ? 'slate' : li.topBid !== null ? 'amber' : 'green'}>
+                              {li.status === 'SOLD' ? `Adjudicada · ${li.buyerTeam ?? '—'}` : li.status === 'UNSOLD' ? 'Desierta' : li.topBid !== null ? `Puja · ${li.topBidTeam ?? '—'}` : 'Sin pujas'}
+                            </Badge>
                           </li>
                         ))}
                       </ul>
@@ -424,7 +456,19 @@ function AuditList({ rows, compact }: { rows: AuditRow[]; compact?: boolean }) {
     <ul className="divide-y divide-white/[0.05] text-sm">
       {rows.map((r) => (
         <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-2">
-          <Badge tone={r.action === 'PURCHASE_REJECTED' ? 'amber' : r.action.startsWith('ECONOMY') || r.action === 'LEAGUE_MIGRATED' ? 'violet' : 'slate'}>{ACTION_LABEL[r.action] ?? r.action}</Badge>
+          <Badge
+            tone={
+              r.action === 'PURCHASE_REJECTED' || r.action === 'AUCTION_VOID' || r.action === 'AUCTION_SETTLE_FAILED'
+                ? 'amber'
+                : r.action === 'AUCTION_WON'
+                  ? 'green'
+                  : r.action.startsWith('ECONOMY') || r.action === 'LEAGUE_MIGRATED'
+                    ? 'violet'
+                    : 'slate'
+            }
+          >
+            {ACTION_LABEL[r.action] ?? r.action}
+          </Badge>
           <span className="text-xs text-slate-400">{dateTime(r.createdAt)}{r.leagueId ? ` · liga ${r.leagueId}` : ''}{r.teamId ? ` · equipo ${r.teamId}` : ''}</span>
           {!compact && <code className="block w-full truncate text-[11px] text-slate-500">{r.details}</code>}
         </li>

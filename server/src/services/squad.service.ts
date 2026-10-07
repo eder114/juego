@@ -114,7 +114,7 @@ export async function getSquad(userId: string, leagueId?: number | null) {
 
 /** Datos de la economía de liga para «Mi equipo»: monedero, valores (k£), precio de compra/venta y entrenador. */
 async function economySquadDetails(
-  team: { id: number; wallet: number; leagueId: number | null },
+  team: { id: number; wallet: number; reserved: number; leagueId: number | null },
   players: { id: number; marketValue: number | null; position: string }[],
   settings: Awaited<ReturnType<typeof getSettings>>,
 ) {
@@ -131,6 +131,8 @@ async function economySquadDetails(
   const squadValue = players.reduce((sum, p) => sum + (p.marketValue ?? 0), 0);
   return {
     wallet: team.wallet,
+    reserved: team.reserved,
+    available: team.wallet - team.reserved,
     league,
     squadValue,
     sellPercent: settings.v2_sell_percent,

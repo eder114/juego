@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 import { prisma, type Tx } from '../lib/prisma';
-import { AppError, badRequest, conflict, forbidden, notFound } from '../lib/errors';
+import { badRequest, conflict, forbidden, notFound } from '../lib/errors';
 import { playerSelect } from '../lib/dto';
 import type { PlayerRarity, Position } from '../domain/constants';
 import { countPositions } from '../domain/lineup';
@@ -27,14 +27,16 @@ import { coachSelect } from './coach.service';
 import { snapshotCurrentLineup } from './squad.service';
 import { createTeamForLeague, resolveTeam, teamIdentity } from './team.service';
 import { notify } from './notification.service';
+import { leadingBids, minNextBid, placeBid, settleCycle, withdrawTeamFromAuctions, type AuctionListing, type BidContext } from './auction.service';
 
 /**
- * Mercado global por liga (economía v2)
- * ─────────────────────────────────────
+ * Mercado de subastas por liga (economía v2)
+ * ──────────────────────────────────────────
  * - Un ciclo diario por liga (MarketCycle) con N jugadores y 1–2 entrenadores, iguales para todos sus miembros.
+ * - Cada anuncio es una SUBASTA que abre y cierra exactamente con el ciclo: no se compra directamente.
  * - El servidor decide el ciclo vigente (UTC en BD, hora local de la liga para el reinicio); nunca el navegador.
- * - Compra atómica: marcar el anuncio como vendido (compare-and-set), cobrar (saldo condicional), validar la
- *   plantilla y crear la propiedad (única por liga + jugador) ocurren en una sola transacción.
+ * - Al vencer el ciclo se liquidan todas las subastas (ver `auction.service`) y solo entonces se genera el
+ *   mercado siguiente, de modo que el dinero retenido se resuelve antes de que empiecen las pujas nuevas.
  */
 
 export const cryptoRng: Rng = () => crypto.randomBytes(4).readUInt32BE() / 4294967296;
@@ -58,10 +60,14 @@ export async function getCurrentCycle(leagueId: number, now = new Date(), rng: R
   const latest = await prisma.marketCycle.findFirst({ where: { leagueId }, orderBy: { startsAt: 'desc' } });
   if (latest && latest.startsAt <= now && now < latest.endsAt) return latest;
 
-  const window = marketCycleWindow(now, league.marketTimezone, leagueResetMinute(league));
+  // El ciclo anterior ha vencido: se liquidan sus subastas (adjudicaciones y devoluciones) antes de abrir otro
+  if (latest && now >= latest.endsAt && !latest.settledAt) await settleCycle(latest.id, settleHooks, now);
+
+  const hours = (await getSettings()).market_cycle_hours;
+  const window = marketCycleWindow(now, league.marketTimezone, leagueResetMinute(league), hours);
   // Si se cambió la hora de reinicio, el nuevo horario empieza donde terminó el ciclo anterior
   const startsAt = latest && latest.endsAt > window.startsAt ? latest.endsAt : window.startsAt;
-  const endsAt = window.endsAt > startsAt ? window.endsAt : new Date(startsAt.getTime() + 24 * 3600 * 1000);
+  const endsAt = window.endsAt > startsAt ? window.endsAt : new Date(startsAt.getTime() + hours * 3600 * 1000);
   try {
     return await generateCycle(league, { startsAt, endsAt, cycleDate: localDateKey(startsAt, league.marketTimezone) }, now, rng);
   } catch (err) {
@@ -112,8 +118,11 @@ async function generateCycle(
   );
   const selectedCoaches = selectMarketCoaches(coachCandidates, { min: s.market_coaches_min, max: s.market_coaches_max, weights: marketWeights(s) }, rng);
   const highArrived = selected.some((p) => rarityAtLeast(p.rarity, pity.minRarity));
-  const valueOf = new Map(players.map((p) => [p.id, p.marketValue!]));
-  const coachValue = new Map(coaches.map((c) => [c.id, c.marketValue]));
+  // Precio de SALIDA de la subasta: un porcentaje del valor del jugador, acotado por los límites configurados.
+  // No es el precio final: lo decide la puja más alta al cerrar el mercado.
+  const startingPrice = (value: number) => Math.min(s.market_start_max, Math.max(s.market_start_min, Math.round((value * s.market_start_percent) / 100)));
+  const valueOf = new Map(players.map((p) => [p.id, startingPrice(p.marketValue!)]));
+  const coachValue = new Map(coaches.map((c) => [c.id, startingPrice(c.marketValue)]));
 
   return prisma.$transaction(async (tx) => {
     const cycle = await tx.marketCycle.create({
@@ -210,7 +219,7 @@ export async function getMarketView(userId: string, leagueId?: number | null) {
   const now = new Date();
   const s = await getSettings();
   const cycle = await getCurrentCycle(league.id, now);
-  const [listings, { map }, squad, coachCount, buyers, participants] = await Promise.all([
+  const [listings, { map }, squad, coachCount, teams, myBids] = await Promise.all([
     prisma.marketListing.findMany({
       where: { cycleId: cycle.id },
       orderBy: { slot: 'asc' },
@@ -220,40 +229,119 @@ export async function getMarketView(userId: string, leagueId?: number | null) {
     prisma.fantasyTeamPlayer.findMany({ where: { teamId: team.id }, select: { player: { select: { position: true, clubId: true } } } }),
     prisma.leagueCoachOwnership.count({ where: { teamId: team.id } }),
     prisma.fantasyTeam.findMany({ where: { leagueId: league.id }, select: { id: true, name: true, user: { select: { managerName: true } } } }),
-    prisma.fantasyTeam.count({ where: { leagueId: league.id } }),
+    prisma.marketBid.findMany({ where: { teamId: team.id, listing: { cycleId: cycle.id } }, orderBy: { amount: 'desc' }, select: { listingId: true, amount: true } }),
   ]);
-  const buyerName = new Map(buyers.map((b) => [b.id, { teamName: b.name, managerName: b.user.managerName }]));
+  const teamName = new Map(teams.map((b) => [b.id, { teamName: b.name, managerName: b.user.managerName }]));
   const limits = await squadLimits();
   const squadLite = squad.map((x) => x.player);
   const lastChanges = await latestValueChanges(listings.filter((l) => l.playerId).map((l) => l.playerId!));
+  // Puja mas alta de este equipo en cada subasta (el historial completo se consulta aparte)
+  const mine = new Map<number, number>();
+  for (const b of myBids) if (!mine.has(b.listingId)) mine.set(b.listingId, b.amount);
+  // Lo que el equipo va ganando ocupa hueco en su plantilla: no puede liderar mas pujas de las que cabrian
+  const leading = listings.filter((l) => l.topBidTeamId === team.id && l.status === 'AVAILABLE');
+  const virtualSquad = [...squadLite, ...leading.filter((l) => l.player).map((l) => ({ position: l.player!.position, clubId: l.player!.clubId }))];
+  const virtualCoaches = coachCount + leading.filter((l) => l.assetType === 'COACH').length;
+  const available = team.wallet - team.reserved;
 
   const items = listings.map((l) => {
-    const base = { id: l.id, assetType: l.assetType, rarity: l.rarity, listingPrice: l.listingPrice, slot: l.slot, soldAt: l.soldAt, buyer: l.buyerTeamId ? (buyerName.get(l.buyerTeamId) ?? null) : null, boughtByMe: l.buyerTeamId === team.id };
+    const myBid = mine.get(l.id) ?? null;
+    const leader = l.topBidTeamId === team.id;
+    const open = l.status === 'AVAILABLE';
+    const minNext = minNextBid(l, s.market_min_increment);
+    const base = {
+      id: l.id,
+      assetType: l.assetType,
+      rarity: l.rarity,
+      startingPrice: l.listingPrice,
+      slot: l.slot,
+      topBid: l.topBid,
+      topBidder: l.topBidTeamId ? (teamName.get(l.topBidTeamId) ?? null) : null,
+      leading: open && leader,
+      outbid: open && myBid !== null && !leader,
+      myBid,
+      bidCount: l.bidCount,
+      bidderCount: l.bidderCount,
+      minNextBid: minNext,
+      finalPrice: l.finalPrice,
+      soldAt: l.soldAt,
+      winner: l.buyerTeamId ? (teamName.get(l.buyerTeamId) ?? null) : null,
+      wonByMe: l.buyerTeamId === team.id,
+    };
+    // Lo que falta para pujar el minimo, descontando lo que este equipo ya tiene retenido aqui
+    const needed = minNext - (leader ? (myBid ?? 0) : 0);
+    const noMoney = needed > available ? `Te faltan ${formatK(needed - available)} disponibles` : null;
     if (l.assetType === 'PLAYER' && l.player) {
       const unavailable = !l.player.isActive || STALE_AVAILABLE.includes(l.player.status);
-      const status = l.status === 'SOLD' ? 'SOLD' : unavailable ? 'UNAVAILABLE' : 'AVAILABLE';
-      const block = status !== 'AVAILABLE' ? null : l.listingPrice > team.wallet ? `Te faltan ${formatK(l.listingPrice - team.wallet)}` : squadBlockReason(squadLite, { position: l.player.position, clubId: l.player.clubId, clubName: l.player.club.name }, limits);
-      return { ...base, status, canBuy: status === 'AVAILABLE' && !block, blockReason: block, player: toPlayerDTO(l.player, aggFor(map, l.player.id)), trend: lastChanges.get(l.player.id) ?? null, coach: null };
+      const status = !open ? (l.status === 'SOLD' ? 'SOLD' : 'UNSOLD') : unavailable ? 'UNAVAILABLE' : 'OPEN';
+      // Si ya es el lider, el jugador ya cuenta en su plantilla virtual: no se le bloquea por su propia puja
+      const fit = leader ? null : squadBlockReason(virtualSquad, { position: l.player.position, clubId: l.player.clubId, clubName: l.player.club.name }, limits);
+      const block = status !== 'OPEN' ? null : (fit ?? noMoney);
+      return { ...base, status, canBid: status === 'OPEN' && !block && s.market_open, blockReason: block, player: toPlayerDTO(l.player, aggFor(map, l.player.id)), trend: lastChanges.get(l.player.id) ?? null, coach: null };
     }
-    const status = l.status === 'SOLD' ? 'SOLD' : l.coach?.isActive ? 'AVAILABLE' : 'UNAVAILABLE';
-    const block = status !== 'AVAILABLE' ? null : l.listingPrice > team.wallet ? `Te faltan ${formatK(l.listingPrice - team.wallet)}` : coachCount >= limits.maxCoaches ? `Ya tienes ${limits.maxCoaches} entrenador${limits.maxCoaches === 1 ? '' : 'es'}: vende el tuyo primero` : null;
-    return { ...base, status, canBuy: status === 'AVAILABLE' && !block, blockReason: block, player: null, trend: null, coach: l.coach };
+    const status = !open ? (l.status === 'SOLD' ? 'SOLD' : 'UNSOLD') : l.coach?.isActive ? 'OPEN' : 'UNAVAILABLE';
+    const fit = leader || virtualCoaches < limits.maxCoaches ? null : `Ya tienes ${limits.maxCoaches} entrenador${limits.maxCoaches === 1 ? '' : 'es'} (contando tus pujas ganadoras)`;
+    const block = status !== 'OPEN' ? null : (fit ?? noMoney);
+    return { ...base, status, canBid: status === 'OPEN' && !block && s.market_open, blockReason: block, player: null, trend: null, coach: l.coach };
   });
 
   const resetMinute = leagueResetMinute(league);
   return {
     mode: 'LEAGUE' as const,
     serverTime: now.toISOString(),
-    league: { id: league.id, name: league.name, timezone: league.marketTimezone, resetTime: hhmm(resetMinute), participants, pityCounter: league.marketPityCounter },
+    league: { id: league.id, name: league.name, timezone: league.marketTimezone, resetTime: hhmm(resetMinute), participants: teams.length, pityCounter: league.marketPityCounter },
     cycle: { id: cycle.id, cycleDate: cycle.cycleDate, startsAt: cycle.startsAt, endsAt: cycle.endsAt },
     wallet: team.wallet,
+    reserved: team.reserved,
+    available,
+    minIncrement: s.market_min_increment,
     marketOpen: s.market_open,
     squadCount: squad.length,
+    leadingCount: leading.length,
     limits,
     coachCount,
     players: items.filter((i) => i.assetType === 'PLAYER'),
     coaches: items.filter((i) => i.assetType === 'COACH'),
     pollSeconds: 15,
+  };
+}
+
+/**
+ * Estado ligero de las subastas: solo lo que cambia mientras el usuario mira la pagina. Se consulta cada
+ * pocos segundos (mucho mas barato que la vista completa) para que las pujas de los demas aparezcan solas,
+ * sin recargar. La hora la marca siempre el servidor.
+ */
+export async function getMarketPulse(userId: string, leagueId?: number | null) {
+  const team = await economyTeam(userId, leagueId);
+  const now = new Date();
+  if (team.economyVersion !== 2 || !team.leagueId) return { mode: 'CLASSIC' as const, serverTime: now.toISOString() };
+  const cycle = await prisma.marketCycle.findFirst({ where: { leagueId: team.leagueId }, orderBy: { startsAt: 'desc' } });
+  const base = { mode: 'LEAGUE' as const, serverTime: now.toISOString(), wallet: team.wallet, reserved: team.reserved, available: team.wallet - team.reserved };
+  if (!cycle) return { ...base, cycleId: null, endsAt: null, settled: false, auctions: [] };
+  const [listings, myBids, s] = await Promise.all([
+    prisma.marketListing.findMany({ where: { cycleId: cycle.id }, orderBy: { slot: 'asc' }, select: { id: true, status: true, listingPrice: true, topBid: true, topBidTeamId: true, bidCount: true, bidderCount: true, finalPrice: true, buyerTeamId: true } }),
+    prisma.marketBid.findMany({ where: { teamId: team.id, listing: { cycleId: cycle.id } }, orderBy: { amount: 'desc' }, select: { listingId: true, amount: true } }),
+    getSettings(),
+  ]);
+  const mine = new Map<number, number>();
+  for (const b of myBids) if (!mine.has(b.listingId)) mine.set(b.listingId, b.amount);
+  return {
+    ...base,
+    cycleId: cycle.id,
+    endsAt: cycle.endsAt,
+    settled: !!cycle.settledAt,
+    auctions: listings.map((l) => ({
+      id: l.id,
+      status: l.status === 'AVAILABLE' ? ('OPEN' as const) : l.status === 'SOLD' ? ('SOLD' as const) : ('UNSOLD' as const),
+      topBid: l.topBid,
+      leading: l.topBidTeamId === team.id,
+      myBid: mine.get(l.id) ?? null,
+      bidCount: l.bidCount,
+      bidderCount: l.bidderCount,
+      minNextBid: minNextBid(l, s.market_min_increment),
+      finalPrice: l.finalPrice,
+      wonByMe: l.buyerTeamId === team.id,
+    })),
   };
 }
 
@@ -270,83 +358,65 @@ export async function latestValueChanges(playerIds: number[]) {
   return map;
 }
 
-// ───────────────────────────── Compra ─────────────────────────────
-
-export const SOLD_MESSAGE = 'Este jugador acaba de ser comprado por otro usuario.';
+// ───────────────────────────── Pujas y liquidación ─────────────────────────────
 
 /**
- * Compra de un anuncio del mercado. Todas las comprobaciones y escrituras van en una transacción:
- *  1. el usuario pertenece a la liga · 2. el mercado está activo · 3. el anuncio sigue disponible (compare-and-set)
- *  4. el jugador no tiene dueño en la liga (restricción única liga+jugador) · 5. saldo suficiente (débito condicional)
- *  6. reglas de plantilla · 7. registro (propiedad, plantilla, movimiento, auditoría).
- * Con dos compras simultáneas solo una consigue el anuncio; la otra recibe SOLD_MESSAGE y no se le cobra nada.
+ * Contexto que necesita una puja para saber si el jugador cabría en la plantilla del equipo. Cuenta como
+ * ocupadas las subastas que ese equipo ya va ganando, de modo que nadie puede liderar más pujas de las que
+ * podría llegar a fichar.
  */
-export async function buyListing(userId: string, listingId: number) {
-  const s = await getSettings();
-  if (!s.market_open) throw badRequest('El mercado está cerrado');
-  const listing = await prisma.marketListing.findUnique({ where: { id: listingId }, include: { cycle: true, player: { include: { club: true } }, coach: true } });
-  if (!listing) throw notFound('Ese anuncio no existe');
-  // El anuncio define la liga: se usa el equipo del usuario en ESA liga
-  const team = await economyTeam(userId, listing.leagueId);
-  if (team.economyVersion !== 2 || team.leagueId !== listing.leagueId) throw badRequest('Tu equipo no juega la economía de esta liga');
-  const member = await prisma.leagueMember.findUnique({ where: { leagueId_userId: { leagueId: listing.leagueId, userId } } });
-  if (!member) throw forbidden('No perteneces a esta liga');
-  const now = new Date();
-  if (now < listing.cycle.startsAt || now >= listing.cycle.endsAt) throw badRequest('Este mercado ya ha terminado: recarga para ver el nuevo');
-  if (listing.status !== 'AVAILABLE') throw conflict(SOLD_MESSAGE);
-  if (listing.assetType === 'PLAYER' && (!listing.player?.isActive || !listing.player.club.isActive)) throw badRequest('Este jugador no está disponible');
-  if (listing.assetType === 'COACH' && !listing.coach?.isActive) throw badRequest('Este entrenador no está disponible');
+async function bidContext(teamId: number, listing: AuctionListing): Promise<BidContext> {
+  const [squad, coachCount, leading, limits] = await Promise.all([
+    prisma.fantasyTeamPlayer.findMany({ where: { teamId }, select: { player: { select: { position: true, clubId: true } } } }),
+    prisma.leagueCoachOwnership.count({ where: { teamId } }),
+    leadingBids(teamId, listing.cycleId),
+    squadLimits(),
+  ]);
+  const virtual = [
+    ...squad.map((x) => x.player),
+    ...leading.filter((l) => l.id !== listing.id && l.player).map((l) => ({ position: l.player!.position, clubId: l.player!.clubId })),
+  ];
+  return {
+    squad: virtual,
+    coachCount: coachCount + leading.filter((l) => l.id !== listing.id && l.assetType === 'COACH').length,
+    limits,
+    blockReason: squadBlockReason,
+  };
+}
 
-  if (listing.assetType === 'PLAYER') await snapshotCurrentLineup(team.id);
-  const limits = await squadLimits();
-  const name = listing.player?.displayName ?? listing.coach?.displayName ?? 'Jugador';
+/** Puja por un anuncio del mercado de la liga. Toda la validación real está en `auction.service`. */
+export async function bidOnListing(userId: string, listingId: number, amount: number) {
+  const result = await placeBid(userId, listingId, amount, { squadContext: bidContext });
+  invalidatePlayerAggregates();
+  return result;
+}
 
-  try {
-    const result = await prisma.$transaction(async (tx) => {
-      // (3) Compare-and-set: solo una transacción puede pasar el anuncio de AVAILABLE a SOLD
-      const claimed = await tx.marketListing.updateMany({
-        where: { id: listing.id, status: 'AVAILABLE' },
-        data: { status: 'SOLD', buyerTeamId: team.id, soldAt: new Date() },
-      });
-      if (claimed.count === 0) throw conflict(SOLD_MESSAGE);
+/** Comprobación que se repite al adjudicar: el ganador debe seguir teniendo hueco para el jugador. */
+export const settleHooks = {
+  async assignBlock(tx: Tx, teamId: number, listing: { assetType: string; playerId: number | null; coachId: number | null }) {
+    const limits = await squadLimits();
+    if (listing.assetType === 'COACH') {
+      const coaches = await tx.leagueCoachOwnership.count({ where: { teamId } });
+      return coaches >= limits.maxCoaches ? `Ya tienes ${limits.maxCoaches} entrenador${limits.maxCoaches === 1 ? '' : 'es'}` : null;
+    }
+    const player = await tx.player.findUnique({ where: { id: listing.playerId! }, include: { club: true } });
+    if (!player) return 'El jugador ya no existe';
+    const squad = await tx.fantasyTeamPlayer.findMany({ where: { teamId }, select: { player: { select: { position: true, clubId: true } } } });
+    return squadBlockReason(squad.map((x) => x.player), { position: player.position, clubId: player.clubId, clubName: player.club.name }, limits);
+  },
+};
 
-      // (5) Débito condicional (bloquea la fila del equipo hasta el final de la transacción)
-      const wallet = await changeWallet(tx, {
-        teamId: team.id,
-        amount: -listing.listingPrice,
-        type: listing.assetType === 'PLAYER' ? 'PLAYER_PURCHASE' : 'COACH_PURCHASE',
-        description: `Fichaje de ${name}${listing.player ? ` (${listing.player.club.shortName})` : ''} en el mercado de la liga`,
-        userId,
-        leagueId: listing.leagueId,
-        reference: `listing:${listing.id}`,
-        operationId: `buy:listing:${listing.id}`,
-      });
-
-      if (listing.assetType === 'PLAYER') {
-        const p = listing.player!;
-        // (6) Reglas de plantilla, con los datos ya bloqueados por esta transacción
-        const squad = await tx.fantasyTeamPlayer.findMany({ where: { teamId: team.id }, select: { player: { select: { position: true, clubId: true } } } });
-        const block = squadBlockReason(squad.map((x) => x.player), { position: p.position, clubId: p.clubId, clubName: p.club.name }, limits);
-        if (block) throw badRequest(block);
-        // (4) Propiedad única por liga
-        await tx.leaguePlayerOwnership.create({ data: { leagueId: listing.leagueId, playerId: p.id, teamId: team.id, purchasePrice: listing.listingPrice, source: 'MARKET' } });
-        await tx.fantasyTeamPlayer.create({ data: { teamId: team.id, playerId: p.id, purchasePrice: p.price } });
-      } else {
-        const coaches = await tx.leagueCoachOwnership.count({ where: { teamId: team.id } });
-        if (coaches >= limits.maxCoaches) throw badRequest(`Ya tienes ${limits.maxCoaches} entrenador${limits.maxCoaches === 1 ? '' : 'es'}: vende el tuyo primero`);
-        await tx.leagueCoachOwnership.create({ data: { leagueId: listing.leagueId, coachId: listing.coachId!, teamId: team.id, purchasePrice: listing.listingPrice } });
-      }
-      await audit(tx, { leagueId: listing.leagueId, cycleId: listing.cycleId, teamId: team.id, userId, action: 'PURCHASE', details: { listingId: listing.id, assetType: listing.assetType, assetId: listing.playerId ?? listing.coachId, price: listing.listingPrice } });
-      return { wallet };
-    });
-    invalidatePlayerAggregates();
-    return { ...result, listingId: listing.id, name, price: listing.listingPrice };
-  } catch (err) {
-    const reason = err instanceof AppError ? err.message : isUniqueViolation(err) ? SOLD_MESSAGE : 'error';
-    await audit(prisma, { leagueId: listing.leagueId, cycleId: listing.cycleId, teamId: team.id, userId, action: 'PURCHASE_REJECTED', details: { listingId: listing.id, reason } });
-    if (isUniqueViolation(err)) throw conflict(SOLD_MESSAGE);
-    throw err;
+/** Liquida los mercados vencidos de todas las ligas (también lo hace el ciclo al generarse el siguiente). */
+export async function settleDueCycles(now = new Date()) {
+  const due = await prisma.marketCycle.findMany({ where: { endsAt: { lte: now }, settledAt: null }, select: { id: true }, orderBy: { endsAt: 'asc' } });
+  let sold = 0;
+  let unsold = 0;
+  for (const c of due) {
+    const r = await settleCycle(c.id, settleHooks, now);
+    sold += r.sold;
+    unsold += r.unsold;
   }
+  return { cycles: due.length, sold, unsold };
 }
 
 // ───────────────────────────── Venta ─────────────────────────────
@@ -528,6 +598,8 @@ export async function leaveEconomy(teamId: number, reason: string, actor?: strin
   await prisma.$transaction(async (tx) => {
     const snapshot = await squadSnapshot(tx, teamId);
     await audit(tx, { leagueId, teamId, userId: actor ?? team.userId, action: 'ECONOMY_LEFT', details: { reason, snapshot } });
+    // Sus pujas vivas se cancelan y las subastas que lideraba vuelven a quedar libres para los demás
+    await withdrawTeamFromAuctions(tx, teamId);
     // Al borrar el equipo se liberan en cascada su plantilla, propiedades, alineaciones y cartas
     await tx.fantasyTeam.delete({ where: { id: teamId } });
   });
@@ -686,7 +758,15 @@ export async function adminCurrentMarket(leagueId: number) {
   const listings = await prisma.marketListing.findMany({
     where: { cycleId: cycle.id },
     orderBy: { slot: 'asc' },
-    include: { player: { select: { id: true, displayName: true, position: true, club: { select: { shortName: true } } } }, coach: { select: { id: true, displayName: true } } },
+    include: {
+      player: { select: { id: true, displayName: true, position: true, club: { select: { shortName: true } } } },
+      coach: { select: { id: true, displayName: true } },
+    },
   });
-  return { cycle, listings };
+  const teams = await prisma.fantasyTeam.findMany({ where: { leagueId }, select: { id: true, name: true } });
+  const name = new Map(teams.map((t) => [t.id, t.name]));
+  return {
+    cycle,
+    listings: listings.map((l) => ({ ...l, topBidTeam: l.topBidTeamId ? (name.get(l.topBidTeamId) ?? null) : null, buyerTeam: l.buyerTeamId ? (name.get(l.buyerTeamId) ?? null) : null })),
+  };
 }

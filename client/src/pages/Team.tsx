@@ -70,7 +70,11 @@ export default function Team() {
       {eco ? (
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <StatCard accent label="Valor de la plantilla" value={moneyK(eco.squadValue)} sub="Valor actual en la economía de liga" />
-          <StatCard label="Presupuesto" value={moneyK(eco.wallet)} sub={moneyFull(eco.wallet)} />
+          <StatCard
+            label="Presupuesto"
+            value={moneyK(eco.available)}
+            sub={eco.reserved ? `${moneyK(eco.reserved)} comprometidos en pujas` : moneyFull(eco.wallet)}
+          />
           <StatCard label="Valor total" value={moneyK(eco.squadValue + eco.wallet)} sub="Plantilla + presupuesto" />
           <StatCard label="Jugadores" value={`${data.players.length}/${eco.limits.maxSquad}`} sub={eco.league ? `Liga «${eco.league.name}»` : 'Sin liga: aún no juegas ninguna partida'} />
         </div>

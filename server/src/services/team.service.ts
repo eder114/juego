@@ -22,6 +22,7 @@ const TEAM_SUMMARY = {
   leagueId: true,
   budget: true,
   wallet: true,
+  reserved: true,
   totalPoints: true,
   economyVersion: true,
   initialSquad: true,
