@@ -311,7 +311,7 @@
     pointer-events: none;
     background-color: #2a1150;
     background-image:
-      linear-gradient(180deg, rgb(10 6 30 / 0.18) 0%, rgb(12 4 26 / 0.32) 100%),
+      linear-gradient(180deg, rgb(10 6 30 / 0.46) 0%, rgb(12 4 26 / 0.62) 100%),
       url('./assets/brand/fondo-degradado.jpg');
     background-size: cover;
     background-position: center top;
