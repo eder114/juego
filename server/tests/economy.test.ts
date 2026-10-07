@@ -17,7 +17,7 @@ import {
   nextLocalMidnight,
   nextStreak,
   normalizeWord,
-  parseWordList,
+  wordleNameFrom,
   pityGuaranteed,
   pityWeights,
   seededRng,
@@ -240,7 +240,30 @@ describe('Wordle', () => {
   it('normaliza tildes y conserva la Ñ', () => {
     expect(normalizeWord('balón')).toBe('BALON');
     expect(normalizeWord('  Añejo ')).toBe('AÑEJO');
-    expect(parseWordList('balón, líder\nPEÑAS xx', 5)).toEqual(['BALON', 'LIDER', 'PEÑAS']);
+    expect(normalizeWord('Mbappé')).toBe('MBAPPE');
+  });
+
+  it('el nombre de Wordle de un jugador es una sola palabra: su apellido futbolístico', () => {
+    const cases: [string, string | null][] = [
+      ['Erling Haaland', 'HAALAND'],
+      ['Mohamed Salah', 'SALAH'],
+      ['Bukayo Saka', 'SAKA'],
+      ['Bruno Fernandes', 'FERNANDES'],
+      ['Kevin De Bruyne', 'BRUYNE'],
+      ['Kylian Mbappé', 'MBAPPE'],
+      ['Vinícius Júnior', 'VINICIUS'],
+      ['Jude Bellingham', 'BELLINGHAM'],
+      ['Gabriel Magalhães', 'MAGALHAES'],
+      // Iniciales, guiones, apóstrofos y sufijos no forman parte del nombre jugable
+      ['N.Jackson', 'JACKSON'],
+      ['Kroupi.Jr', 'KROUPI'],
+      ['Gibbs-White', 'GIBBSWHITE'],
+      ["O'Reilly", 'OREILLY'],
+      ['Šeško', 'SESKO'],
+      ['Muñoz', 'MUÑOZ'],
+      ['', null],
+    ];
+    for (const [input, expected] of cases) expect(wordleNameFrom(input), input).toBe(expected);
   });
 
   it('recompensas por intento (valores iniciales de la especificación)', () => {

@@ -125,6 +125,7 @@ economyRouter.get('/challenges', async (req, res) => {
 });
 
 economyRouter.post('/challenges/wordle/guess', actionLimiter, async (req, res) => {
-  const body = parse(z.object({ guess: z.string().trim().min(1).max(12), league: z.number().int().positive().optional() }), req.body);
+  // Margen suficiente para cualquier nombre escrito con espacios o guiones: la validez real la decide el servicio
+  const body = parse(z.object({ guess: z.string().trim().min(1).max(40), league: z.number().int().positive().optional() }), req.body);
   res.json(await challenges.submitWordleGuess(req.user!.id, body.guess, body.league ?? activeLeague(req)));
 });

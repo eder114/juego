@@ -1,4 +1,3 @@
-import crypto from 'node:crypto';
 import { prisma } from '../lib/prisma';
 import { badRequest, conflict } from '../lib/errors';
 import type { ChallengeType } from '../domain/constants';
@@ -10,11 +9,10 @@ import {
   milestoneFor,
   nextLocalMidnight,
   nextStreak,
-  normalizeWord,
-  parseWordList,
   wordleReward,
   type LetterState,
 } from '../domain/economy';
+import { dictionarySizes, isPlayerWord, normalizeGuess, pickDailyWord, revealPlayer } from './wordle.service';
 import { getSettings, streakMilestones, wordleRewards } from './settings.service';
 import { changeWallet, creditClassicBudget, isUniqueViolation } from './economy.service';
 import { grantCard } from './card.service';
@@ -24,14 +22,16 @@ import { findTeam } from './team.service';
  * Desafíos diarios
  * ────────────────
  * Arquitectura común (DailyChallenge / DailyChallengeAttempt / DailyChallengeReward / DailyStreak) para cualquier
- * tipo de desafío; hoy existe WORDLE. Reglas que garantiza el servidor:
+ * tipo de desafío; hoy existe WORDLE, un Wordle clásico cuyo diccionario son nombres de futbolistas reales
+ * (ver `wordle.service`). Reglas que garantiza el servidor:
  *  - La fecha del desafío la calcula el servidor en la zona horaria configurada (el reloj del navegador no cuenta).
  *  - Una partida por usuario, fecha y tipo (restricción única). Recargar, cerrar sesión o repetir peticiones no la reinicia.
+ *  - Solo se admiten intentos que sean el nombre de un jugador real de la misma longitud; una palabra
+ *    corriente se rechaza y NO gasta intento. La comprobación es del servidor: el navegador no decide nada.
  *  - Cada intento se registra con compare-and-set sobre el nº de intentos: dos peticiones simultáneas no cuentan doble.
  *  - La palabra solo se envía al cliente cuando la partida termina. La recompensa es única por partida.
  */
 const TYPE: ChallengeType = 'WORDLE';
-const WORD_LENGTH = 5;
 const STREAK_TYPE = 'DAILY_CHALLENGE';
 
 interface GuessRow {
@@ -43,20 +43,31 @@ function todayKey(tz: string, now = new Date()) {
   return { date: localDateKey(now, tz), nextResetAt: nextLocalMidnight(now, tz) };
 }
 
+interface Secret {
+  word: string;
+  playerId?: number;
+}
+
+const secretOf = (challenge: { secret: string }) => JSON.parse(challenge.secret) as Secret;
+const lengthOf = (challenge: { meta: string; secret: string }) => (JSON.parse(challenge.meta) as { length?: number }).length ?? secretOf(challenge).word.length;
+
+/** Desafío del día: un jugador real, el mismo para todos los mánagers, elegido por el servidor. */
 async function getOrCreateChallenge(date: string, tz: string) {
   const existing = await prisma.dailyChallenge.findUnique({ where: { type_challengeDate: { type: TYPE, challengeDate: date } } });
   if (existing) return existing;
-  const s = await getSettings();
-  const words = parseWordList(s.wordle_words, WORD_LENGTH);
-  if (!words.length) throw badRequest('El Wordle no tiene palabras configuradas');
-  // Evita repetir palabras de los últimos días mientras haya alternativas
-  const recent = await prisma.dailyChallenge.findMany({ where: { type: TYPE }, orderBy: { challengeDate: 'desc' }, take: Math.min(60, Math.max(0, words.length - 1)), select: { secret: true } });
-  const used = new Set(recent.map((r) => (JSON.parse(r.secret) as { word: string }).word));
-  const pool = words.filter((w) => !used.has(w));
-  const word = (pool.length ? pool : words)[crypto.randomInt((pool.length ? pool : words).length)];
+  // Se evitan los jugadores de los últimos días mientras queden alternativas
+  const recent = await prisma.dailyChallenge.findMany({ where: { type: TYPE }, orderBy: { challengeDate: 'desc' }, take: 60, select: { secret: true } });
+  const daily = await pickDailyWord(new Set(recent.map((r) => secretOf(r).word)));
+  if (!daily) throw badRequest('El Wordle no tiene jugadores disponibles');
   try {
     return await prisma.dailyChallenge.create({
-      data: { type: TYPE, challengeDate: date, timezone: tz, secret: JSON.stringify({ word }), meta: JSON.stringify({ length: WORD_LENGTH }) },
+      data: {
+        type: TYPE,
+        challengeDate: date,
+        timezone: tz,
+        secret: JSON.stringify({ word: daily.word, playerId: daily.playerId } satisfies Secret),
+        meta: JSON.stringify({ length: daily.length }),
+      },
     });
   } catch (err) {
     if (!isUniqueViolation(err)) throw err;
@@ -69,17 +80,23 @@ async function streakState(userId: string) {
   return row ? { current: row.current, best: row.best, lastDate: row.lastDate } : null;
 }
 
-/** Estado del desafío de hoy para el usuario. No crea la partida (se crea con el primer intento). */
+/**
+ * Estado del desafío de hoy para el usuario. El desafío del día se crea aquí si aún no existe (la partida
+ * del usuario no: esa nace con su primer intento), porque el tablero necesita saber cuántas letras tiene.
+ */
 export async function getWordleState(userId: string, leagueId?: number | null) {
   const s = await getSettings();
   const now = new Date();
   const { date, nextResetAt } = todayKey(s.challenge_timezone, now);
-  const [attempt, streak, team] = await Promise.all([
+  const [challenge, attempt, streak, team] = await Promise.all([
+    s.wordle_enabled ? getOrCreateChallenge(date, s.challenge_timezone) : null,
     prisma.dailyChallengeAttempt.findUnique({ where: { userId_challengeDate_type: { userId, challengeDate: date, type: TYPE } }, include: { reward: true, challenge: true } }),
     streakState(userId),
     findTeam(userId, leagueId),
   ]);
+  const today = attempt?.challenge ?? challenge;
   const guesses: GuessRow[] = attempt ? JSON.parse(attempt.guesses) : [];
+  const answer = attempt?.completed ? secretOf(attempt.challenge).word : null;
   return {
     type: TYPE,
     enabled: s.wordle_enabled,
@@ -87,7 +104,7 @@ export async function getWordleState(userId: string, leagueId?: number | null) {
     serverTime: now.toISOString(),
     nextResetAt: nextResetAt.toISOString(),
     timezone: s.challenge_timezone,
-    wordLength: WORD_LENGTH,
+    wordLength: today ? lengthOf(today) : 0,
     maxAttempts: attempt?.maxAttempts ?? s.wordle_max_attempts,
     rewards: wordleRewards(s).slice(0, s.wordle_max_attempts),
     rewardCurrency: team?.economyVersion === 2 ? 'K' : 'TENTHS',
@@ -98,8 +115,9 @@ export async function getWordleState(userId: string, leagueId?: number | null) {
     guesses,
     completed: attempt?.completed ?? false,
     won: attempt?.won ?? false,
-    // La solución solo se revela cuando la partida ha terminado
-    answer: attempt?.completed ? (JSON.parse(attempt.challenge.secret) as { word: string }).word : null,
+    // La solución y el jugador solo se revelan cuando la partida ha terminado
+    answer,
+    player: answer ? await revealPlayer(answer, secretOf(attempt!.challenge).playerId) : null,
     reward: attempt?.reward
       ? { amount: attempt.reward.amount, currency: attempt.reward.currency, streakBonus: attempt.reward.streakBonus, streakDays: attempt.reward.streakDays, cardCode: attempt.reward.cardCode }
       : null,
@@ -109,12 +127,16 @@ export async function getWordleState(userId: string, leagueId?: number | null) {
 export async function submitWordleGuess(userId: string, rawGuess: string, leagueId?: number | null) {
   const s = await getSettings();
   if (!s.wordle_enabled) throw badRequest('El Wordle está desactivado temporalmente');
-  const guess = normalizeWord(rawGuess);
-  if (!isPlayableWord(guess, WORD_LENGTH)) throw badRequest(`Escribe una palabra de ${WORD_LENGTH} letras`);
+  const guess = normalizeGuess(rawGuess);
 
   const { date } = todayKey(s.challenge_timezone);
   const challenge = await getOrCreateChallenge(date, s.challenge_timezone);
-  const answer = (JSON.parse(challenge.secret) as { word: string }).word;
+  const answer = secretOf(challenge).word;
+  const length = lengthOf(challenge);
+
+  // Estas dos comprobaciones van ANTES de tocar la partida: un intento inválido no gasta oportunidades
+  if (!isPlayableWord(guess, length)) throw badRequest(`El jugador de hoy tiene ${length} letras`);
+  if (!(await isPlayerWord(guess))) throw badRequest('Ese nombre no corresponde a un jugador válido.');
 
   let attempt = await prisma.dailyChallengeAttempt.findUnique({ where: { userId_challengeDate_type: { userId, challengeDate: date, type: TYPE } } });
   if (!attempt) {
@@ -197,12 +219,15 @@ export async function challengeHistory(userId: string) {
 export async function challengeStats() {
   const s = await getSettings();
   const { date } = todayKey(s.challenge_timezone);
-  const challenge = await prisma.dailyChallenge.findUnique({ where: { type_challengeDate: { type: TYPE, challengeDate: date } } });
-  if (!challenge) return { date, players: 0, won: 0 };
+  const [challenge, dictionary] = await Promise.all([
+    prisma.dailyChallenge.findUnique({ where: { type_challengeDate: { type: TYPE, challengeDate: date } } }),
+    dictionarySizes(),
+  ]);
+  if (!challenge) return { date, players: 0, won: 0, length: 0, dictionary: dictionary.total };
   const [players, won] = await Promise.all([
     prisma.dailyChallengeAttempt.count({ where: { challengeId: challenge.id } }),
     prisma.dailyChallengeAttempt.count({ where: { challengeId: challenge.id, won: true } }),
   ]);
-  return { date, players, won };
+  return { date, players, won, length: lengthOf(challenge), dictionary: dictionary.total };
 }
 

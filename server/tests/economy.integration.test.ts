@@ -640,106 +640,188 @@ describe.skipIf(!hasDb)('economía de liga (integración)', () => {
       cycleId = next.id;
     });
 
-    it('caso 8-9 · el mismo jugador se subasta en otra liga y los presupuestos son independientes', async () => {
+    it('caso 8-9 · el mismo jugador puede estar en otra liga y los presupuestos son independientes', async () => {
       const otraLiga = await m.leagues.createLeague(users[3].id, { name: 'QA Liga Subastas 2', type: 'PRIVATE', maxMembers: 10 });
       await m.leagues.joinByCode(juan(), otraLiga.code);
       const cycle2 = await m.market.getCurrentCycle(otraLiga.id);
-      // El jugador que Juan ya tiene en la primera liga está libre en esta: se le crea su subasta
-      const slot = await m.prisma.marketListing.count({ where: { cycleId: cycle2.id } });
       const player = await m.prisma.player.findUniqueOrThrow({ where: { id: playerId } });
-      expect(await m.prisma.leaguePlayerOwnership.count({ where: { leagueId: otraLiga.id, playerId } })).toBe(0);
-      const propiedadesAntes = await m.prisma.leaguePlayerOwnership.count({ where: { playerId } });
-      // El mercado de esta liga puede haberlo sacado ya por su cuenta: en ese caso se usa esa subasta
-      const listing2 =
-        (await m.prisma.marketListing.findFirst({ where: { cycleId: cycle2.id, playerId } })) ??
-        (await m.prisma.marketListing.create({
-          data: { cycleId: cycle2.id, leagueId: otraLiga.id, assetType: 'PLAYER', playerId, rarity: player.rarity, listingPrice: start, slot },
-        }));
-
-      // Puja el miembro de esta liga en cuya plantilla quepa el jugador (las plantillas son aleatorias)
-      const st = await m.settings.getSettings();
-      const perPosition: Record<string, number> = { GK: st.v2_max_gk, DEF: st.v2_max_def, MID: st.v2_max_mid, FWD: st.v2_max_fwd };
-      let postor: string | null = null;
-      for (const u of [juan(), users[3].id]) {
-        const team = await teamOf(u, otraLiga.id);
-        const squad = (await m.prisma.fantasyTeamPlayer.findMany({ where: { teamId: team.id }, include: { player: true } })).map((r) => r.player);
-        const cabe =
-          squad.length < st.v2_max_squad &&
-          squad.filter((x) => x.clubId === player.clubId).length < st.max_players_per_club &&
-          squad.filter((x) => x.position === player.position).length < perPosition[player.position];
-        if (cabe) {
-          postor = u;
-          break;
-        }
-      }
-      expect(postor).toBeTruthy();
-      const equipoPostor = await teamOf(postor!, otraLiga.id);
-      const reservaPrimeraLiga = postor === juan() ? (await wallet((await teamOf(juan(), auctionLeague)).id)).reserved : null;
-
-      await m.market.bidOnListing(postor!, listing2.id, listing2.listingPrice);
-      // La puja retiene dinero solo en el equipo de esta liga
-      expect((await wallet(equipoPostor.id)).reserved).toBe(listing2.listingPrice);
-      if (reservaPrimeraLiga !== null) expect((await wallet((await teamOf(juan(), auctionLeague)).id)).reserved).toBe(reservaPrimeraLiga);
-
-      await closeMarket(cycle2.id);
-      // El mismo jugador pertenece ahora a dos equipos distintos, uno en cada liga
-      expect(await m.prisma.leaguePlayerOwnership.count({ where: { leagueId: otraLiga.id, playerId, teamId: equipoPostor.id } })).toBe(1);
+      // Juan se lo adjudicó en la primera liga
       expect(await m.prisma.leaguePlayerOwnership.count({ where: { leagueId: auctionLeague, playerId, teamId: teams.juan } })).toBe(1);
-      expect(await m.prisma.leaguePlayerOwnership.count({ where: { playerId } })).toBe(propiedadesAntes + 1);
+
+      // En la otra liga el jugador puede tener otro dueño: si el reparto inicial no se lo dio a nadie, se subasta
+      let duenoEnOtraLiga = await m.prisma.leaguePlayerOwnership.findFirst({ where: { leagueId: otraLiga.id, playerId } });
+      if (!duenoEnOtraLiga) {
+        const st = await m.settings.getSettings();
+        const perPosition: Record<string, number> = { GK: st.v2_max_gk, DEF: st.v2_max_def, MID: st.v2_max_mid, FWD: st.v2_max_fwd };
+        let postor: string | null = null;
+        for (const u of [juan(), users[3].id]) {
+          const team = await teamOf(u, otraLiga.id);
+          const squad = (await m.prisma.fantasyTeamPlayer.findMany({ where: { teamId: team.id }, include: { player: true } })).map((r) => r.player);
+          const cabe =
+            squad.length < st.v2_max_squad &&
+            squad.filter((x) => x.clubId === player.clubId).length < st.max_players_per_club &&
+            squad.filter((x) => x.position === player.position).length < perPosition[player.position];
+          if (cabe) {
+            postor = u;
+            break;
+          }
+        }
+        expect(postor).toBeTruthy();
+        const equipoPostor = await teamOf(postor!, otraLiga.id);
+        const slot = await m.prisma.marketListing.count({ where: { cycleId: cycle2.id } });
+        const listing2 =
+          (await m.prisma.marketListing.findFirst({ where: { cycleId: cycle2.id, playerId } })) ??
+          (await m.prisma.marketListing.create({
+            data: { cycleId: cycle2.id, leagueId: otraLiga.id, assetType: 'PLAYER', playerId, rarity: player.rarity, listingPrice: start, slot },
+          }));
+        const reservaPrimeraLiga = postor === juan() ? (await wallet((await teamOf(juan(), auctionLeague)).id)).reserved : null;
+
+        await m.market.bidOnListing(postor!, listing2.id, listing2.listingPrice);
+        // La puja retiene dinero SOLO en el equipo de esa liga
+        expect((await wallet(equipoPostor.id)).reserved).toBe(listing2.listingPrice);
+        if (reservaPrimeraLiga !== null) expect((await wallet((await teamOf(juan(), auctionLeague)).id)).reserved).toBe(reservaPrimeraLiga);
+
+        await closeMarket(cycle2.id);
+        expect((await wallet(equipoPostor.id)).reserved).toBe(0);
+        duenoEnOtraLiga = await m.prisma.leaguePlayerOwnership.findFirst({ where: { leagueId: otraLiga.id, playerId } });
+      }
+
+      // El mismo jugador pertenece a dos equipos distintos, uno en cada liga
+      expect(duenoEnOtraLiga).toBeTruthy();
+      expect(duenoEnOtraLiga!.teamId).not.toBe(teams.juan);
+      expect(await m.prisma.leaguePlayerOwnership.count({ where: { playerId, leagueId: { in: [auctionLeague, otraLiga.id] } } })).toBe(2);
       // Y dentro de una misma liga sigue habiendo un único dueño
-      const otroMiembro = await teamOf(postor === juan() ? users[3].id : juan(), otraLiga.id);
+      const otroMiembro = (await m.prisma.fantasyTeam.findFirstOrThrow({ where: { leagueId: otraLiga.id, id: { not: duenoEnOtraLiga!.teamId } } })).id;
       await expect(
-        m.prisma.leaguePlayerOwnership.create({ data: { leagueId: otraLiga.id, playerId, teamId: otroMiembro.id, purchasePrice: 1, source: 'MARKET' } }),
+        m.prisma.leaguePlayerOwnership.create({ data: { leagueId: otraLiga.id, playerId, teamId: otroMiembro, purchasePrice: 1, source: 'MARKET' } }),
       ).rejects.toThrow();
     });
   });
 
-  describe('Wordle diario', () => {
+  describe('Wordle diario (nombres de futbolistas)', () => {
     const answerOf = async () => {
       const s = await m.settings.getSettings();
       const date = m.economy.localDateKey(new Date(), s.challenge_timezone);
       const ch = await m.prisma.dailyChallenge.findUniqueOrThrow({ where: { type_challengeDate: { type: 'WORDLE', challengeDate: date } } });
-      return { answer: JSON.parse(ch.secret).word as string, challengeId: ch.id };
+      return { answer: JSON.parse(ch.secret).word as string, challengeId: ch.id, length: JSON.parse(ch.meta).length as number };
     };
-    const wrongWord = (answer: string) => (answer === 'CAMPO' ? 'BALON' : 'CAMPO');
+    /** Un jugador real distinto a la respuesta, con las mismas letras: el intento tiene que ser válido. */
+    const otherPlayer = async (answer: string, length: number) => {
+      const row = await m.prisma.player.findFirstOrThrow({
+        where: { isActive: true, club: { isActive: true }, wordleName: { not: answer }, NOT: { wordleName: null } },
+        select: { wordleName: true },
+        orderBy: { marketValue: 'desc' },
+      });
+      const same = await m.prisma.player.findMany({
+        where: { isActive: true, club: { isActive: true }, NOT: [{ wordleName: null }, { wordleName: answer }] },
+        select: { wordleName: true },
+        orderBy: { marketValue: 'desc' },
+      });
+      return same.find((x) => x.wordleName!.length === length)?.wordleName ?? row.wordleName!;
+    };
 
-    it('la palabra no se revela antes de terminar y todos juegan la misma', async () => {
+    it('el jugador del día no se revela antes de terminar y todos juegan el mismo', async () => {
       const state = await m.challenges.getWordleState(users[0].id, leagueId);
       expect(state.answer).toBeNull();
+      expect(state.player).toBeNull();
       expect(state.maxAttempts).toBe(6);
-      const first = await m.challenges.submitWordleGuess(users[0].id, 'LIDER', leagueId);
+      const { answer, length, challengeId } = await answerOf();
+      // La longitud del tablero es la del jugador del día
+      expect(state.wordLength).toBe(length);
+      expect(answer).toHaveLength(length);
+      const guess = await otherPlayer(answer, length);
+      const first = await m.challenges.submitWordleGuess(users[0].id, guess, leagueId);
       expect(first.answer === null || first.completed).toBe(true);
-      const { challengeId } = await answerOf();
-      await m.challenges.submitWordleGuess(users[1].id, 'LIDER', leagueId).catch(() => undefined);
+      await m.challenges.submitWordleGuess(users[1].id, guess, leagueId).catch(() => undefined);
       const attempts = await m.prisma.dailyChallengeAttempt.findMany({ where: { userId: { in: [users[0].id, users[1].id] } } });
       expect(attempts.every((a) => a.challengeId === challengeId)).toBe(true);
     });
 
-    it('peticiones simultáneas no cuentan intentos de más; 6 intentos como máximo; recargar no reinicia', async () => {
+    it('la respuesta del día es el apellido de un jugador real', async () => {
       const { answer } = await answerOf();
+      expect(answer).toMatch(/^[A-ZÑ]+$/);
+      expect(await m.prisma.player.count({ where: { wordleName: answer, isActive: true } })).toBeGreaterThan(0);
+    });
+
+    it('una palabra corriente se rechaza y NO gasta intento', async () => {
+      const user = users[3].id;
+      const { length } = await answerOf();
+      const before = await m.challenges.getWordleState(user, leagueId);
+      // Palabras corrientes con EXACTAMENTE la longitud del día, más dos rellenos imposibles
+      const comunes = ['CASA', 'HOLA', 'PERA', 'CASAS', 'PERRO', 'MUNDO', 'BALON', 'CAMPO', 'FUTBOL', 'CASITA', 'PELOTAS', 'CAMISAS', 'ESTADIOS', 'PELOTAZO'];
+      const candidatas = [...comunes.filter((w) => w.length === length), 'Z'.repeat(length), 'QXJVWKZY'.slice(0, length)];
+      const reales = new Set(
+        (await m.prisma.player.findMany({ where: { wordleName: { in: candidatas } }, select: { wordleName: true } })).map((x) => x.wordleName!),
+      );
+      const fakes = [...new Set(candidatas)].filter((w) => !reales.has(w));
+      expect(fakes.length).toBeGreaterThan(0);
+      for (const w of fakes) {
+        await expect(m.challenges.submitWordleGuess(user, w, leagueId)).rejects.toThrow(/no corresponde a un jugador válido/i);
+      }
+      const after = await m.challenges.getWordleState(user, leagueId);
+      expect(after.attemptsUsed).toBe(before.attemptsUsed);
+      expect(after.guesses).toHaveLength(before.guesses.length);
+    });
+
+    it('un nombre completo o de otra longitud tampoco vale', async () => {
+      const user = users[3].id;
+      const { answer, length } = await answerOf();
+      const full = await m.prisma.player.findFirstOrThrow({ where: { displayName: { contains: ' ' }, isActive: true }, select: { displayName: true } });
+      await expect(m.challenges.submitWordleGuess(user, full.displayName, leagueId)).rejects.toThrow();
+      const otherLength = await m.prisma.player.findFirst({
+        where: { isActive: true, club: { isActive: true }, NOT: { wordleName: null } },
+        select: { wordleName: true },
+        orderBy: { marketValue: 'desc' },
+      });
+      const distinta = (await m.prisma.player.findMany({ where: { isActive: true, NOT: { wordleName: null } }, select: { wordleName: true } }))
+        .map((x) => x.wordleName!)
+        .find((w) => w.length !== length);
+      expect(otherLength).toBeTruthy();
+      if (distinta) await expect(m.challenges.submitWordleGuess(user, distinta, leagueId)).rejects.toThrow(new RegExp(`${length} letras`));
+      expect((await m.challenges.getWordleState(user, leagueId)).attemptsUsed).toBe(0);
+      expect(answer).toBeTruthy();
+    });
+
+    it('acepta el nombre en minúsculas y con tildes (se normaliza en el servidor)', async () => {
+      const user = users[3].id;
+      const { answer, length } = await answerOf();
+      const name = await otherPlayer(answer, length);
+      const before = (await m.challenges.getWordleState(user, leagueId)).attemptsUsed;
+      await m.challenges.submitWordleGuess(user, ` ${name.toLowerCase()} `, leagueId);
+      const after = await m.challenges.getWordleState(user, leagueId);
+      expect(after.attemptsUsed).toBe(before + 1);
+      expect(after.guesses.at(-1)?.word).toBe(name);
+    });
+
+    it('peticiones simultáneas no cuentan intentos de más; 6 intentos como máximo; recargar no reinicia', async () => {
+      const { answer, length } = await answerOf();
       const user = users[0].id;
+      const wrong = await otherPlayer(answer, length);
       const already = (await m.challenges.getWordleState(user, leagueId)).attemptsUsed;
-      const burst = await Promise.allSettled(Array.from({ length: 4 }, () => m.challenges.submitWordleGuess(user, wrongWord(answer), leagueId)));
+      const burst = await Promise.allSettled(Array.from({ length: 4 }, () => m.challenges.submitWordleGuess(user, wrong, leagueId)));
       const accepted = burst.filter((r) => r.status === 'fulfilled').length;
       const after = await m.challenges.getWordleState(user, leagueId);
       expect(after.attemptsUsed).toBe(Math.min(6, already + accepted));
       expect(after.guesses).toHaveLength(after.attemptsUsed);
-      while (!(await m.challenges.getWordleState(user, leagueId)).completed) await m.challenges.submitWordleGuess(user, wrongWord(answer), leagueId);
+      while (!(await m.challenges.getWordleState(user, leagueId)).completed) await m.challenges.submitWordleGuess(user, wrong, leagueId);
       const done = await m.challenges.getWordleState(user, leagueId);
       expect(done.attemptsUsed).toBe(6);
       expect(done.won).toBe(false);
       expect(done.answer).toBe(answer);
+      // Al terminar sí se puede mostrar de quién se trataba
+      expect(done.player?.displayName).toBeTruthy();
       await expect(m.challenges.submitWordleGuess(user, answer, leagueId)).rejects.toThrow(/Ya has jugado/);
       // Nueva lectura (equivale a recargar o volver a iniciar sesión): el estado viene de la base de datos
       expect((await m.challenges.getWordleState(user, leagueId)).completed).toBe(true);
     });
 
     it('acertar en el 3.er intento paga £750.000 una sola vez aunque se repitan peticiones', async () => {
-      const { answer } = await answerOf();
+      const { answer, length } = await answerOf();
       const user = users[2].id;
       const team = await teamOf(user);
-      await m.challenges.submitWordleGuess(user, wrongWord(answer), leagueId);
-      await m.challenges.submitWordleGuess(user, wrongWord(answer), leagueId);
+      const wrong = await otherPlayer(answer, length);
+      await m.challenges.submitWordleGuess(user, wrong, leagueId);
+      await m.challenges.submitWordleGuess(user, wrong, leagueId);
       const results = await Promise.allSettled([m.challenges.submitWordleGuess(user, answer, leagueId), m.challenges.submitWordleGuess(user, answer, leagueId), m.challenges.submitWordleGuess(user, answer, leagueId)]);
       expect(results.filter((r) => r.status === 'fulfilled').length).toBeGreaterThanOrEqual(1);
       const state = await m.challenges.getWordleState(user, leagueId);

@@ -16,6 +16,7 @@ import { ensureCardCatalog } from './card.service';
 import { ensurePlayerValuations } from './valuation.service';
 import { syncCoaches } from './coach.service';
 import { ensureTeamLeagues } from './team.service';
+import { ensurePlayerWordleNames } from './wordle.service';
 
 export const bootstrapState = { seeding: false, error: null as string | null };
 const BOOTSTRAP_MARKER = 'bootstrap_completed';
@@ -174,6 +175,8 @@ export async function ensureEconomyReady() {
   // Equipos creados antes de que existieran los equipos por liga: se asignan a la suya
   await ensureTeamLeagues();
   await ensureCardCatalog();
+  // Diccionario del Wordle: el apellido jugable de cada futbolista
+  await ensurePlayerWordleNames();
   const firstTime = (await prisma.playerValuation.count()) === 0;
   await ensurePlayerValuations();
   if (firstTime) await prisma.gameweek.updateMany({ where: { isProcessed: true }, data: { valuationsUpdated: true } });

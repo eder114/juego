@@ -445,6 +445,8 @@ export type LetterState = 'correct' | 'present' | 'absent';
 export function normalizeWord(raw: string) {
   return raw
     .trim()
+    // NFC primero: así una Ñ escrita como «N + tilde» también se reconoce y se conserva
+    .normalize('NFC')
     .toUpperCase()
     .replace(/Ñ/g, ' ')
     .normalize('NFD')
@@ -454,8 +456,23 @@ export function normalizeWord(raw: string) {
 
 export const isPlayableWord = (w: string, length: number) => w.length === length && /^[A-ZÑ]+$/.test(w);
 
-export function parseWordList(text: string, length: number) {
-  return [...new Set(text.split(/[\s,;]+/).map(normalizeWord).filter((w) => isPlayableWord(w, length)))];
+/** Sufijos que no identifican al jugador: «Vinícius Júnior» se juega como VINICIUS. */
+const NAME_SUFFIXES = new Set(['JR', 'JNR', 'JUNIOR', 'SR', 'SNR', 'SENIOR', 'II', 'III']);
+
+/**
+ * Nombre con el que un jugador entra en el Wordle: UNA sola palabra, su apellido futbolístico.
+ * «Bruno Fernandes» → FERNANDES · «Kevin De Bruyne» → BRUYNE · «Vinícius Júnior» → VINICIUS ·
+ * «Gibbs-White» → GIBBSWHITE · «N.Jackson» → JACKSON · «Mbappé» → MBAPPE.
+ * Devuelve null si no queda un nombre jugable (solo letras).
+ */
+export function wordleNameFrom(displayName: string): string | null {
+  const tokens = normalizeWord(displayName)
+    .split(/[\s.]+/)
+    // Las iniciales («N.Jackson») y los sufijos no son el nombre del jugador
+    .map((t) => t.replace(/[^A-ZÑ]/g, ''))
+    .filter((t) => t.length > 1 && !NAME_SUFFIXES.has(t));
+  const word = tokens.at(-1) ?? normalizeWord(displayName).replace(/[^A-ZÑ]/g, '');
+  return /^[A-ZÑ]{2,}$/.test(word) ? word : null;
 }
 
 /** Evaluación estándar en dos pasadas (las letras repetidas se cuentan correctamente). */

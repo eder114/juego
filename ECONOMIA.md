@@ -274,18 +274,58 @@ Todos los parámetros se editan en Administración → Configuración → Valora
 
 Al cerrar la jornada, las activaciones pasan a `APPLIED` con su efecto en puntos y la carta a `USED`. Los rivales afectados reciben una notificación. Volver a procesar la jornada no duplica el efecto.
 
-## 7. Desafíos diarios (Wordle)
+## 7. Desafío diario: Wordle de futbolistas
 
-- **Palabra del día.** El servidor calcula la fecha en la zona horaria configurada. La palabra es la misma para todos (`DailyChallenge (WORDLE, fecha)`) y se elige al azar de la lista editable, evitando repetir las recientes.
-- **La palabra no sale del servidor.** Se envía al cliente solo cuando la partida termina; cada intento se evalúa en el servidor.
-- **Una partida al día.** Hay una partida por usuario, fecha y tipo (restricción única). Recargar, cerrar sesión, cambiar la hora del PC o manipular el frontend no la reinicia.
-- **Intentos.** Cada intento se registra con *compare-and-set* sobre el número de intentos: peticiones simultáneas no cuentan doble.
+Es un **Wordle clásico** —verde, amarillo y gris, con el recuento correcto de letras repetidas— cuya única
+particularidad es que el diccionario son **nombres de futbolistas reales**. No hay pistas de equipo, posición,
+precio ni estadísticas: el jugador se adivina solo por las letras.
+
+### El nombre jugable de cada futbolista
+
+Cada jugador tiene un `Player.wordleName`: **una sola palabra**, su apellido futbolístico, en mayúsculas y sin
+signos. Nunca el nombre completo.
+
+| Jugador | `wordleName` |
+| --- | --- |
+| Erling Haaland | `HAALAND` |
+| Bruno Fernandes | `FERNANDES` |
+| Kevin De Bruyne | `BRUYNE` |
+| Vinícius Júnior | `VINICIUS` |
+| Kylian Mbappé | `MBAPPE` |
+| Gibbs-White | `GIBBSWHITE` |
+| N.Jackson | `JACKSON` |
+
+Lo calcula `wordleNameFrom()` a partir del nombre que ya usa el resto del Fantasy: normaliza (mayúsculas, sin
+tildes, conservando la Ñ), descarta las iniciales y los sufijos (`Jr`, `Júnior`, `Sr`…), une guiones y apóstrofos
+y se queda con la última palabra. El nombre real del jugador no se toca en ningún otro sitio. Se rellena al
+arrancar y después de cada importación, así que los fichajes nuevos entran solos en el diccionario.
+
+### Reglas del desafío
+
+- **Jugador del día.** El servidor calcula la fecha en su zona horaria y elige un jugador, el mismo para todos
+  (`DailyChallenge (WORDLE, fecha)`), evitando repetir los recientes. La respuesta sale de los futbolistas más
+  conocidos (los de mayor valor, hasta `wordle_answer_pool`) para que sea adivinable; **la longitud del día es la
+  de ese jugador**, dentro de los límites configurados.
+- **Qué se acepta como intento.** Cualquier `wordleName` de un jugador real, en activo y de un club de la
+  temporada, **con exactamente las letras del día**. Una palabra corriente (`CASAS`, `PERRO`, `FUTBOL`) se
+  rechaza con *«Ese nombre no corresponde a un jugador válido.»* y **no gasta intento**; un nombre completo
+  (`ERLINGHAALAND`) tampoco vale. La comprobación es solo del servidor: llamar a la API a mano no la salta.
+- **Normalización.** Lo escrito se pasa a mayúsculas, se le quitan tildes, espacios y signos y se conserva la Ñ,
+  así que `mbappé`, `MBAPPE` y `Mbappe` son el mismo intento.
+- **Sin teclado virtual.** El usuario escribe el nombre en un campo de texto («Escribe un jugador…») y envía con
+  el botón o con Enter. No hay desplegable, buscador ni lista de jugadores: hay que pensarlo y escribirlo.
+- **La respuesta no sale del servidor.** Se envía al cliente solo cuando la partida termina; entonces sí se
+  muestra de qué futbolista se trataba (foto, posición y club) como resultado final.
+- **Una partida al día.** Hay una partida por usuario, fecha y tipo (restricción única). Recargar, cerrar sesión,
+  cambiar la hora del PC o manipular el frontend no la reinicia.
+- **Intentos.** Cada intento se registra con *compare-and-set* sobre el número de intentos: peticiones
+  simultáneas no cuentan doble.
 - **Recompensa.**
   - Se abona en la misma transacción en que se marca la victoria, con el `operationId` `challenge:<intento>`.
   - La tabla de recompensas tiene una fila única por partida.
   - Premios por defecto: £1M en los intentos 1–2, £750K en los intentos 3–4, £600K en el 5.º, £500K en el 6.º y nada si no se acierta.
+  - El premio se abona al equipo de la liga activa: cada liga tiene su propia economía.
 - **Racha.** Cuenta los días que se acierta (configurable a «días jugados») y se reinicia si se salta un día. Los hitos (3, 7, 14 y 30 días) dan dinero y/o cartas, y son configurables en JSON.
-- **Palabras.** Se aceptan palabras de 5 letras (con Ñ) sin diccionario de validación. La lista de soluciones se edita en Administración.
 - **Nuevos desafíos.** La arquitectura es común para cualquier tipo: basta con añadir un tipo a `CHALLENGE_TYPES` y su servicio.
 
 ## 8. Migración del sistema antiguo
@@ -309,7 +349,9 @@ Todos los parámetros se validan antes de guardar; por ejemplo, las rarezas no p
   del valor (`market_start_percent`) y sus topes (`market_start_min`, `market_start_max`), cuántos jugadores y
   entrenadores salen cada día y el enfriamiento tras una venta. La hora de cierre y la zona horaria son de cada
   liga. Aunque hoy el ciclo sea de 24 horas, la duración ya es un ajuste: cambiarla afecta al mercado siguiente.
-- **Entrenadores**, **Cartas** y **Desafíos diarios**.
+- **Entrenadores**, **Cartas** y **Desafíos diarios** (intentos, premios por intento, hitos de racha, letras
+  mínimas y máximas del jugador del día y tamaño del grupo del que se sortea). Administración → Economía muestra
+  cuántos nombres admite hoy el diccionario y de cuántas letras es el desafío.
 
 Las cartas (nombre, rareza, efecto, límites, si se pueden activar y si se pueden conseguir) se editan en Administración → Economía → Cartas.
 
@@ -327,15 +369,15 @@ Cuando el backend reparte el equipo inicial, el usuario no entra directamente al
 
 ## 10. Pruebas
 
-`npm test` (servidor) ejecuta 92 pruebas:
+`npm test` (servidor) ejecuta 97 pruebas:
 
 - `tests/domain.test.ts`: las 21 pruebas anteriores de puntuación, alineaciones y precios.
-- `tests/economy.test.ts`: 27 pruebas unitarias de dominio.
+- `tests/economy.test.ts`: 28 pruebas unitarias de dominio.
   - Equipo inicial: 13 jugadores con la formación correcta, sin repetidos, ponderado y sin estrellas cuando su peso es 0.
   - Mercado: 10 jugadores sin duplicados y sin comprados, rareza, pity, diversidad y entre 1 y 2 entrenadores.
   - Rarezas y valoración: subida, bajada, límites, suavizado y elasticidad.
-  - Zonas horarias y horario de verano, Wordle (evaluación, tildes y Ñ, premios), rachas, modificadores de cartas y puntos de entrenador.
-- `tests/economy.integration.test.ts`: 44 pruebas contra una copia de la base de datos real.
+  - Zonas horarias y horario de verano, Wordle (evaluación, tildes y Ñ, nombre jugable de cada futbolista, premios), rachas, modificadores de cartas y puntos de entrenador.
+- `tests/economy.integration.test.ts`: 48 pruebas contra una copia de la base de datos real.
   - Equipo inicial y £100M para cuatro mánagers, y propiedad única.
   - Ciclo único ante 5 peticiones simultáneas.
   - Pujas simultáneas: solo una se convierte en la oferta más alta y solo ella retiene dinero.
@@ -347,7 +389,9 @@ Cuando el backend reparte el equipo inicial, el usuario no entra directamente al
     cobro, generación automática del mercado siguiente y el mismo jugador subastado en otra liga con presupuestos
     independientes.
   - Venta con enfriamiento.
-  - Wordle: intentos simultáneos, 6 intentos como máximo, sin reinicio y premio único ante peticiones repetidas.
+  - Wordle: la respuesta es un futbolista real y el tablero tiene sus letras; una palabra corriente se rechaza sin
+    gastar intento; un nombre completo o de otra longitud tampoco vale; se acepta en minúsculas y con tildes;
+    intentos simultáneos, 6 intentos como máximo, sin reinicio y premio único ante peticiones repetidas.
   - Cartas: activación idempotente, carrera de activaciones, presión con límite y bloqueo tras el cierre.
   - Doble puntos aplicada dentro del motor de puntuación real, idempotente al reprocesar la jornada.
   - Valoración por jornada idempotente.

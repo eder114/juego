@@ -16,7 +16,7 @@ interface Overview {
   teamCards: Record<string, number>;
   coaches: { total: number; active: number };
   playersValued: number;
-  wordle: { date: string; players: number; won: number };
+  wordle: { date: string; players: number; won: number; length: number; dictionary: number };
   audit: AuditRow[];
 }
 interface AuditRow {
@@ -87,7 +87,12 @@ export default function AdminEconomy() {
         <StatCard label="Ligas con economía" value={data.leagues.filter((l) => l.economyVersion === 2).length} icon={<Store />} sub={`${data.leagues.length} ligas de usuarios`} />
         <StatCard label="Equipos en partida" value={data.teams.inLeagueEconomy} icon={<Users />} sub={`${data.teams.classic} en el sistema clásico`} />
         <StatCard label="Entrenadores" value={`${data.coaches.active}/${data.coaches.total}`} icon={<UserRound />} sub={`${data.playersValued} jugadores valorados`} />
-        <StatCard label="Wordle de hoy" value={`${data.wordle.won}/${data.wordle.players}`} icon={<Gift />} sub="Aciertos / jugadores" />
+        <StatCard
+          label="Wordle de hoy"
+          value={`${data.wordle.won}/${data.wordle.players}`}
+          icon={<Gift />}
+          sub={`Aciertos / jugadores · ${data.wordle.length} letras · ${data.wordle.dictionary} nombres admitidos`}
+        />
       </div>
       <Tabs
         value={tab}

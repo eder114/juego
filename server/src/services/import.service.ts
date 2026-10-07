@@ -22,6 +22,7 @@ import { notifyOwners } from './notification.service';
 import { syncGameweekStatuses } from './gameweek.service';
 import { loadRules, recalculateStatistics } from './scoring.service';
 import { ensurePlayerValuations } from './valuation.service';
+import { ensurePlayerWordleNames } from './wordle.service';
 
 async function chunked<T>(items: T[], size: number, fn: (chunk: T[]) => Promise<unknown>) {
   for (let i = 0; i < items.length; i += size) await fn(items.slice(i, i + size));
@@ -254,6 +255,8 @@ export async function importDataset(ds: SeasonDataset, mode: 'seed' | 'sync'): P
   }
 
   if (mode === 'sync') await handleStatusChanges(statusAlerts);
+  // Los jugadores nuevos entran también en el diccionario del Wordle
+  await ensurePlayerWordleNames();
   await recalculateStatistics();
   await syncGameweekStatuses();
   invalidatePlayerAggregates();

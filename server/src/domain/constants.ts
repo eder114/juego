@@ -180,14 +180,6 @@ export const CHALLENGE_TYPES = ['WORDLE'] as const;
 export type ChallengeType = (typeof CHALLENGE_TYPES)[number];
 
 /** Palabras iniciales del Wordle (5 letras, vocabulario futbolístico). Editables desde administración. */
-export const DEFAULT_WORDLE_WORDS = [
-  'BALON', 'CAMPO', 'FALTA', 'PENAL', 'GOLES', 'TIROS', 'PASES', 'CRACK', 'JUEGO', 'DUELO',
-  'RIVAL', 'LIDER', 'MARCA', 'DERBI', 'FINAL', 'GRADA', 'SOCIO', 'FICHA', 'VENTA', 'CARTA',
-  'BANCO', 'PUNTO', 'TABLA', 'CHUTE', 'TOQUE', 'AMAGO', 'ZURDO', 'MEDIO', 'NUEVE', 'BOTAS',
-  'GANAR', 'JUGAR', 'SAQUE', 'BANDA', 'LINEA', 'FORMA', 'RACHA', 'TACOS', 'HIMNO', 'PRIMA',
-  'TRATO', 'FIRMA', 'PUJAR', 'VALLA', 'VELOZ', 'EXITO', 'HEROE', 'ASTRO', 'IDOLO', 'LIGAS',
-  'COPAS', 'ARCOS', 'CORTO', 'LARGO', 'PALCO', 'PRESA', 'TECHO', 'MOVER', 'ROBAR', 'CESTA',
-];
 
 /** Hitos de racha por defecto (dinero en miles de £; card = código de carta del catálogo). */
 export const DEFAULT_STREAK_MILESTONES = [
@@ -342,7 +334,17 @@ export const SETTINGS_DEFS = {
   wordle_reward_4: { value: 750, label: 'Premio en el 4.º intento', group: 'Desafíos diarios', type: 'moneyk', min: 0, max: 100000 },
   wordle_reward_5: { value: 600, label: 'Premio en el 5.º intento', group: 'Desafíos diarios', type: 'moneyk', min: 0, max: 100000 },
   wordle_reward_6: { value: 500, label: 'Premio en el 6.º intento o posteriores', group: 'Desafíos diarios', type: 'moneyk', min: 0, max: 100000 },
-  wordle_words: { value: DEFAULT_WORDLE_WORDS.join('\n'), label: 'Palabras del Wordle (una por línea, 5 letras)', group: 'Desafíos diarios', type: 'text' },
+  wordle_min_length: { value: 4, label: 'Letras mínimas del jugador del día', group: 'Desafíos diarios', type: 'number', min: 3, max: 12 },
+  wordle_max_length: { value: 8, label: 'Letras máximas del jugador del día', group: 'Desafíos diarios', type: 'number', min: 3, max: 15 },
+  wordle_answer_pool: {
+    value: 200,
+    label: 'Jugadores entre los que se sortea el del día (los de mayor valor)',
+    group: 'Desafíos diarios',
+    type: 'number',
+    min: 10,
+    max: 2000,
+    hint: 'Como intento se admite cualquier jugador real de la misma longitud, no solo estos',
+  },
   streak_requires_win: { value: true, label: 'La racha solo cuenta los desafíos ganados', group: 'Desafíos diarios', type: 'boolean' },
   streak_milestones: {
     value: JSON.stringify(DEFAULT_STREAK_MILESTONES),

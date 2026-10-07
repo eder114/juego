@@ -271,7 +271,10 @@ export interface WordleState {
   guesses: { word: string; result: LetterState[] }[];
   completed: boolean;
   won: boolean;
+  /** Solo cuando la partida ha terminado */
   answer: string | null;
+  /** El jugador que había detrás, solo al terminar: durante la partida no se da ninguna pista */
+  player: { id: number; displayName: string; position: Position; club: ClubLite | null; photoUrl: string | null } | null;
   reward: { amount: number; currency: 'K' | 'TENTHS'; streakBonus: number; streakDays: number; cardCode: string | null } | null;
 }
 

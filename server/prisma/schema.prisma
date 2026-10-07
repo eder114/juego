@@ -109,6 +109,8 @@ model Player {
   // Economía de liga (v2): valor de mercado en miles de £ (100000 = £100M) y rareza calculada
   marketValue     Int?
   rarity          String    @default("COMMON") // COMMON | UNCOMMON | RARE | EPIC | STAR
+  // Wordle: su apellido futbolístico en una sola palabra y sin tildes (HAALAND, FERNANDES, MBAPPE)
+  wordleName      String?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
@@ -128,6 +130,7 @@ model Player {
   @@index([clubId])
   @@index([position])
   @@index([displayName])
+  @@index([wordleName])
   @@map("players")
 }
 

@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { CalendarCheck, Delete, Flame, Gift, Trophy } from 'lucide-react';
+import { CalendarCheck, Flame, Gift, Send, Trophy } from 'lucide-react';
 import clsx from 'clsx';
 import { api, errorMessage } from '../lib/api';
 import { money, moneyFull, moneyIn, moneyK } from '../lib/format';
@@ -9,15 +9,15 @@ import type { LetterState, WordleState } from '../types';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
 import { useLeague } from '../context/LeagueContext';
-import { Badge, Button, Card, CardHeader, EmptyState, ErrorState, LoadingBlock, PageHeader } from '../components/ui';
+import { Badge, Button, Card, CardHeader, EmptyState, ErrorState, Input, LoadingBlock, PageHeader } from '../components/ui';
 import { useServerCountdown } from '../components/economy';
+import { ClubCrest, PlayerPhoto, PositionBadge } from '../components/sport';
 
 interface ChallengesData {
   wordle: WordleState;
   history: { date: string; type: string; attemptsUsed: number; completed: boolean; won: boolean; reward: { amount: number; currency: 'K' | 'TENTHS'; streakBonus: number; cardCode: string | null } | null }[];
 }
 
-const KEY_ROWS = ['QWERTYUIOP', 'ASDFGHJKLÑ', 'ZXCVBNM'];
 const TILE: Record<LetterState | 'empty' | 'typing', string> = {
   correct: 'border-pitch-500 bg-pitch-600 text-white',
   present: 'border-amber-400 bg-amber-500 text-ink-950',
@@ -25,17 +25,22 @@ const TILE: Record<LetterState | 'empty' | 'typing', string> = {
   empty: 'border-white/15 bg-white/[0.03] text-white',
   typing: 'border-white/60 bg-white/[0.06] text-white',
 };
-const KEY: Record<LetterState | 'idle', string> = {
-  correct: 'bg-pitch-600 text-white',
-  present: 'bg-amber-500 text-ink-950',
-  absent: 'bg-white/[0.06] text-white/35',
-  idle: 'bg-white/[0.14] text-white hover:bg-white/[0.22]',
-};
-const RANK: Record<LetterState, number> = { absent: 0, present: 1, correct: 2 };
+
+/** Lo que se escribe: mayúsculas, sin tildes y solo letras (igual que normaliza el servidor). */
+const clean = (raw: string) =>
+  raw
+    .normalize('NFC')
+    .toUpperCase()
+    .replace(/Ñ/g, '\u0001')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\u0001/g, 'Ñ')
+    .replace(/[^A-ZÑ]/g, '');
 
 /**
- * Desafíos diarios. Todo el estado (intentos, fecha, victoria, premio, racha) lo decide el servidor:
- * el navegador solo muestra lo que recibe y envía la palabra escrita.
+ * Desafío diario: un Wordle clásico cuyo diccionario son apellidos de futbolistas reales. Todo el estado
+ * (intentos, fecha, victoria, premio, racha) y la validez de cada nombre los decide el servidor: el
+ * navegador solo muestra lo que recibe y envía lo que el usuario escribe.
  */
 export default function Challenges() {
   const qc = useQueryClient();
@@ -47,6 +52,7 @@ export default function Challenges() {
   const [playing, setPlaying] = useState(false);
   const [input, setInput] = useState('');
   const [shake, setShake] = useState(false);
+  const field = useRef<HTMLInputElement>(null);
   const wordle = data?.wordle;
   const countdown = useServerCountdown(wordle?.nextResetAt, wordle?.serverTime);
 
@@ -68,53 +74,30 @@ export default function Challenges() {
       }
     },
     onError: (e) => {
+      // Un nombre que no es de un jugador no gasta intento: el servidor lo rechaza antes de registrarlo
       setShake(true);
       window.setTimeout(() => setShake(false), 450);
       toast.push('error', errorMessage(e));
-      void qc.invalidateQueries({ queryKey: ['challenges'] });
+      field.current?.focus();
     },
   });
 
   const canType = !!wordle && playing && !wordle.completed && !guess.isPending && wordle.enabled;
-  const press = useCallback(
-    (key: string) => {
-      if (!wordle || !canType) return;
-      if (key === 'ENTER') {
-        if (input.length !== wordle.wordLength) {
-          setShake(true);
-          window.setTimeout(() => setShake(false), 450);
-          return;
-        }
-        guess.mutate(input);
-      } else if (key === 'BACKSPACE') setInput((v) => v.slice(0, -1));
-      else if (/^[A-ZÑ]$/.test(key)) setInput((v) => (v.length < wordle.wordLength ? v + key : v));
-    },
-    [wordle, canType, input, guess],
-  );
 
+  // Al empezar (o tras cada intento) el cursor vuelve al campo para seguir escribiendo
   useEffect(() => {
-    if (!canType) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.ctrlKey || e.metaKey || e.altKey) return;
-      const k = e.key.toUpperCase();
-      if (k === 'ENTER' || k === 'BACKSPACE' || /^[A-ZÑ]$/.test(k)) {
-        e.preventDefault();
-        press(k);
-      }
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [canType, press]);
+    if (canType) field.current?.focus();
+  }, [canType, wordle?.attemptsUsed]);
 
-  const keyStates = useMemo(() => {
-    const map = new Map<string, LetterState>();
-    for (const g of wordle?.guesses ?? [])
-      [...g.word].forEach((ch, i) => {
-        const prev = map.get(ch);
-        if (!prev || RANK[g.result[i]] > RANK[prev]) map.set(ch, g.result[i]);
-      });
-    return map;
-  }, [wordle?.guesses]);
+  const send = () => {
+    if (!wordle || !canType) return;
+    if (input.length !== wordle.wordLength) {
+      setShake(true);
+      window.setTimeout(() => setShake(false), 450);
+      return;
+    }
+    guess.mutate(input);
+  };
 
   if (error) return <ErrorState error={error} onRetry={refetch} />;
   if (isLoading || !data || !wordle) return <LoadingBlock />;
@@ -148,7 +131,8 @@ export default function Challenges() {
             ) : !showBoard ? (
               <div className="flex flex-col items-center gap-4 py-6 text-center">
                 <p className="max-w-md text-sm text-slate-300">
-                  Adivina la palabra futbolística del día en {wordle.maxAttempts} intentos. Verde: letra en su sitio · Amarillo: está en otra posición · Gris: no está. Todos los mánagers juegan la misma palabra.
+                  Adivina el futbolista del día en {wordle.maxAttempts} intentos. Escribe el apellido de un jugador real de {wordle.wordLength} letras: verde, letra en
+                  su sitio · amarillo, está en otra posición · gris, no está. Todos los mánagers juegan el mismo jugador.
                 </p>
                 {!wordle.hasTeam && <p className="text-sm text-amber-200">Crea tu equipo para cobrar el premio.</p>}
                 <Button size="lg" onClick={() => setPlaying(true)}>Jugar</Button>
@@ -164,7 +148,34 @@ export default function Challenges() {
                       Intentos restantes: <b className="text-white">{wordle.maxAttempts - wordle.attemptsUsed}</b> · premio si aciertas ahora: <b className="text-pitch-300">{fmt(wordle.rewards[Math.min(wordle.attemptsUsed, wordle.rewards.length - 1)] ?? 0)}</b>
                     </p>
                     {!playing && <Button onClick={() => setPlaying(true)}>Continuar</Button>}
-                    {playing && <Keyboard onKey={press} states={keyStates} disabled={!canType} />}
+                    {playing && (
+                      <form
+                        className="flex w-full flex-col items-stretch gap-2 sm:flex-row"
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          send();
+                        }}
+                      >
+                        <Input
+                          ref={field}
+                          value={input}
+                          onChange={(e) => setInput(clean(e.target.value).slice(0, wordle.wordLength))}
+                          disabled={!canType}
+                          placeholder="Escribe un jugador..."
+                          aria-label={`Escribe el apellido de un jugador de ${wordle.wordLength} letras`}
+                          autoComplete="off"
+                          autoCorrect="off"
+                          autoCapitalize="characters"
+                          spellCheck={false}
+                          enterKeyHint="send"
+                          className="flex-1 text-center font-headline text-xl uppercase tracking-[0.2em]"
+                        />
+                        <Button type="submit" loading={guess.isPending} disabled={!canType || input.length !== wordle.wordLength} icon={<Send className="size-4" />}>
+                          Intentar
+                        </Button>
+                      </form>
+                    )}
+                    {playing && <p className="-mt-2 text-center text-xs text-slate-500">Solo se aceptan apellidos de futbolistas reales de {wordle.wordLength} letras.</p>}
                   </>
                 )}
               </div>
@@ -261,32 +272,6 @@ function Board({ wordle, input, shake }: { wordle: WordleState; input: string; s
   );
 }
 
-function Keyboard({ onKey, states, disabled }: { onKey: (k: string) => void; states: Map<string, LetterState>; disabled: boolean }) {
-  return (
-    <div className="w-full select-none space-y-1.5" aria-label="Teclado">
-      {KEY_ROWS.map((row, r) => (
-        <div key={row} className="flex justify-center gap-1">
-          {r === 2 && (
-            <button type="button" disabled={disabled} onClick={() => onKey('ENTER')} className="h-12 rounded-md bg-pitch-600 px-2 text-[11px] font-bold uppercase text-white transition hover:bg-pitch-500 disabled:opacity-50 sm:px-3">
-              Enviar
-            </button>
-          )}
-          {[...row].map((k) => (
-            <button key={k} type="button" disabled={disabled} onClick={() => onKey(k)} className={clsx('h-12 min-w-0 flex-1 rounded-md text-sm font-bold transition disabled:opacity-50 sm:max-w-10', KEY[states.get(k) ?? 'idle'])}>
-              {k}
-            </button>
-          ))}
-          {r === 2 && (
-            <button type="button" disabled={disabled} onClick={() => onKey('BACKSPACE')} aria-label="Borrar" className="grid h-12 place-items-center rounded-md bg-white/[0.14] px-2.5 text-white transition hover:bg-white/[0.22] disabled:opacity-50">
-              <Delete className="size-5" />
-            </button>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
 function CompletedPanel({ wordle, countdown, fmt }: { wordle: WordleState; countdown: string; fmt: (k: number) => string }) {
   const reward = wordle.reward;
   return (
@@ -295,8 +280,24 @@ function CompletedPanel({ wordle, countdown, fmt }: { wordle: WordleState; count
       <p className="font-headline text-4xl uppercase text-white">{wordle.won ? '¡Acertaste!' : 'No lo acertaste'}</p>
       {wordle.answer && (
         <p className="text-sm text-slate-300">
-          La palabra era <b className="text-white">{wordle.answer}</b>
+          El jugador era <b className="text-white">{wordle.answer}</b>
         </p>
+      )}
+      {wordle.player && (
+        <Link
+          to={`/players/${wordle.player.id}`}
+          className="mt-1 flex items-center gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.04] px-4 py-2.5 text-left transition hover:border-white/20"
+        >
+          <PlayerPhoto player={{ photoUrl: wordle.player.photoUrl, displayName: wordle.player.displayName }} size={44} rounded="rounded-xl" />
+          <span className="min-w-0">
+            <span className="block truncate font-semibold text-white">{wordle.player.displayName}</span>
+            <span className="flex items-center gap-1.5 text-xs text-slate-400">
+              <PositionBadge position={wordle.player.position} />
+              {wordle.player.club?.crestUrl && <ClubCrest club={wordle.player.club} size={14} />}
+              <span className="truncate">{wordle.player.club?.name}</span>
+            </span>
+          </span>
+        </Link>
       )}
       <p className="mt-2 text-sm text-slate-300">
         Premio obtenido: <b className="text-lg text-pitch-300">{reward ? (reward.currency === 'K' ? moneyFull(reward.amount) : money(reward.amount)) : '£0'}</b>

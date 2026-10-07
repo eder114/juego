@@ -1,7 +1,7 @@
 import { prisma } from '../lib/prisma';
 import { badRequest } from '../lib/errors';
 import { SETTINGS_DEFS, type SettingKey, type Settings } from '../domain/constants';
-import { isValidTimeZone, parseWordList, type RarityWeights, type StreakMilestone } from '../domain/economy';
+import { isValidTimeZone, type RarityWeights, type StreakMilestone } from '../domain/economy';
 
 let cache: { value: Settings; at: number } | null = null;
 const TTL_MS = 5_000;
@@ -92,7 +92,7 @@ function validateEconomySettings(s: Settings) {
   if (Object.values(starterWeights(s)).every((w) => w <= 0)) throw badRequest('Los pesos del equipo inicial no pueden ser todos 0');
   if (s.v2_max_gk + s.v2_max_def + s.v2_max_mid + s.v2_max_fwd < 11 + s.v2_starter_bench)
     throw badRequest('Los máximos por posición no permiten el equipo inicial');
-  if (parseWordList(s.wordle_words, 5).length < 1) throw badRequest('El Wordle necesita al menos una palabra válida de 5 letras');
+  if (s.wordle_min_length > s.wordle_max_length) throw badRequest('Las letras mínimas del Wordle no pueden superar a las máximas');
   streakMilestones(s);
 }
 
