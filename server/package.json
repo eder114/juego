@@ -17,7 +17,7 @@
     "db:reset": "prisma db push --force-reset && tsx prisma/seed.ts && tsx prisma/demo.ts",
     "data:fetch": "tsx scripts/fetch-fpl.ts",
     "build:render": "node scripts/prepare-prisma.mjs && prisma generate --schema prisma/postgres/schema.prisma && tsup src/index.ts --format cjs --target node20 --out-dir dist --clean",
-    "start:render": "prisma db push --schema prisma/postgres/schema.prisma --skip-generate && node dist/index.cjs"
+    "start:render": "node scripts/deploy-db.mjs && node dist/index.cjs"
   },
   "dependencies": {
     "@prisma/client": "6.19.3",

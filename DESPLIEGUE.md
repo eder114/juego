@@ -102,6 +102,14 @@ En el celular la página se adapta sola a la pantalla, con menú inferior y boto
 
 ---
 
+## Qué pasa al arrancar
+
+Antes de encender el servidor, Render ejecuta `scripts/deploy-db.mjs`, que pone la base al día con el
+esquema del proyecto. Las bases gratuitas de Neon se duermen por inactividad y tardan unos segundos en
+despertar, así que el script **reintenta hasta 6 veces** con esperas crecientes en lugar de tumbar el
+despliegue al primer intento fallido. Si acaba fallando de verdad, escribe el motivo en claro en el log
+(líneas `[deploy-db]`) con una indicación de qué hacer.
+
 ## Actualizar la app
 
 Cada vez que se cambie el código, basta con subirlo a GitHub y Render lo vuelve a publicar solo.
@@ -130,5 +138,6 @@ Los datos de la base de datos (usuarios, equipos, ligas, puntos) se conservan en
 | La compilación falla en Render | Abre *Logs*, copia el error y revisa que el repositorio subido esté completo |
 | `ADMIN_PASSWORD` rechazada al arrancar | No se permite la contraseña de ejemplo `Admin12345!`: pon una propia en *Environment* y pulsa *Manual Deploy* |
 | Error de conexión a la base de datos | Revisa que `DATABASE_URL` sea la cadena **directa** de Neon (sin pooling) y termine en `sslmode=require` |
+| El despliegue falla en `prisma db push` | Busca en el log las líneas que empiezan por `[deploy-db]`: dicen si la base no respondía (se reintenta sola) o si hace falta una acción tuya, como actualizar `DATABASE_URL` |
 | `/api/health` muestra `bootstrapError` | La carga inicial falló. Corrige la causa y reinicia el servicio (*Manual Deploy → Restart*): la carga se reintenta sola |
 | Tarda mucho en abrir | Estaba dormida (plan gratuito): espera unos 50 s o configura cron-job.org |
