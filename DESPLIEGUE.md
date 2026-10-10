@@ -105,10 +105,21 @@ En el celular la página se adapta sola a la pantalla, con menú inferior y boto
 ## Qué pasa al arrancar
 
 Antes de encender el servidor, Render ejecuta `scripts/deploy-db.mjs`, que pone la base al día con el
-esquema del proyecto. Las bases gratuitas de Neon se duermen por inactividad y tardan unos segundos en
-despertar, así que el script **reintenta hasta 6 veces** con esperas crecientes en lugar de tumbar el
-despliegue al primer intento fallido. Si acaba fallando de verdad, escribe el motivo en claro en el log
-(líneas `[deploy-db]`) con una indicación de qué hacer.
+esquema del proyecto:
+
+1. Compara la base real con el esquema y calcula el SQL que falta.
+2. Si ese SQL contiene algo que borraría datos (`DROP TABLE`, `DROP COLUMN`, `TRUNCATE`), **detiene el
+   despliegue** y lo imprime. Nunca se aplica un borrado de forma automática.
+3. Si no, lo aplica y comprueba que no quede diferencia.
+
+No se usa `prisma db push` directamente porque, cuando un cambio lleva un aviso (por ejemplo añadir un
+índice único a una tabla con filas), pide confirmación por teclado; como en Render no hay terminal, se
+rendía y el despliegue entero fallaba. La alternativa habitual, `--accept-data-loss`, equivaldría a
+aceptar a ciegas cualquier borrado, así que no se usa.
+
+Además, las bases gratuitas de Neon se duermen por inactividad y tardan unos segundos en despertar: los
+fallos de conexión se **reintentan hasta 6 veces** con esperas crecientes. Si algo acaba fallando, el
+motivo queda escrito en claro en el log, en las líneas `[deploy-db]`.
 
 ## Actualizar la app
 
