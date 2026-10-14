@@ -105,8 +105,10 @@ economyRouter.post('/cards/activate', actionLimiter, async (req, res) => {
   const body = parse(
     z.object({
       teamCardId: z.number().int().positive(),
-      targetPlayerId: z.number().int().positive({ message: 'Elige un jugador' }),
+      // El objetivo depende de la carta: el servicio valida qué hace falta en cada caso
+      targetPlayerId: z.number().int().positive().nullable().optional(),
       targetTeamId: z.number().int().positive().nullable().optional(),
+      targetActivationId: z.number().int().positive().nullable().optional(),
       requestId: z.string().uuid('Identificador de petición no válido'),
     }),
     req.body,

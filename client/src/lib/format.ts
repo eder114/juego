@@ -28,6 +28,16 @@ export const RARITY_META: Record<string, { label: string; chip: string; ring: st
   LEGENDARY: { label: 'Legendaria', chip: 'bg-amber-300/20 text-amber-200 ring-amber-300/60', ring: 'ring-amber-300/80', text: 'text-amber-200' },
 };
 
+/** Familia de la carta: color, nombre y acento, según la especificación de Fantasy Cards. */
+export const CARD_CATEGORY_META: Record<string, { label: string; chip: string; ring: string; text: string; glow: string }> = {
+  BOOST: { label: 'Potenciadora', chip: 'bg-sky-500/20 text-sky-200 ring-sky-400/40', ring: 'ring-sky-400/50', text: 'text-sky-200', glow: 'from-sky-500/20' },
+  WEAKEN: { label: 'Debilitadora', chip: 'bg-red-500/20 text-red-200 ring-red-400/40', ring: 'ring-red-400/50', text: 'text-red-200', glow: 'from-red-500/20' },
+  DEFENSE: { label: 'Defensiva', chip: 'bg-emerald-500/20 text-emerald-200 ring-emerald-400/40', ring: 'ring-emerald-400/50', text: 'text-emerald-200', glow: 'from-emerald-500/20' },
+  ECONOMY: { label: 'Económica', chip: 'bg-amber-400/20 text-amber-200 ring-amber-300/45', ring: 'ring-amber-300/55', text: 'text-amber-200', glow: 'from-amber-400/20' },
+  TACTIC: { label: 'Táctica', chip: 'bg-violet-500/20 text-violet-200 ring-violet-400/40', ring: 'ring-violet-400/50', text: 'text-violet-200', glow: 'from-violet-500/20' },
+  LEGENDARY: { label: 'Legendaria', chip: 'bg-amber-300/25 text-amber-100 ring-amber-200/60', ring: 'ring-amber-200/70', text: 'text-amber-100', glow: 'from-amber-200/25' },
+};
+
 export const TX_LABEL: Record<string, string> = {
   INITIAL_BUDGET: 'Presupuesto inicial',
   PURCHASE: 'Fichaje',

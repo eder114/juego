@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import { FORMATIONS, PLAYER_RARITIES, type PlayerRarity, type Position } from '../src/domain/constants';
 import { countPositions, parseFormation } from '../src/domain/lineup';
 import {
-  applyCardModifiers,
   buildStarterSquad,
   canFieldEleven,
   classifyRarities,
@@ -29,6 +28,16 @@ import {
   type RarityWeights,
   type ValuationConfig,
 } from '../src/domain/economy';
+import {
+  applyPlayerModifiers,
+  CARD_ACTIVATIONS,
+  CARD_CATALOG,
+  CARD_CATEGORIES,
+  CARD_EFFECTS,
+  CARD_RARITIES,
+  CARD_TARGETS,
+  type PlayerModifier,
+} from '../src/domain/cards';
 
 const WEIGHTS: RarityWeights = { COMMON: 45, UNCOMMON: 30, RARE: 18, EPIC: 6, STAR: 1 };
 const POS: Position[] = ['GK', 'DEF', 'MID', 'FWD'];
@@ -289,25 +298,80 @@ describe('rachas', () => {
   });
 });
 
-describe('cartas', () => {
-  it('doble puntos duplica los puntos del jugador', () => {
-    expect(applyCardModifiers(6, 1, [{ effect: 'DOUBLE_POINTS', value: 200 }], 'MAX')).toEqual({ total: 12, base: 6, delta: 6 });
+describe('cartas: política de acumulación', () => {
+  const mods = (...m: PlayerModifier[]) => m;
+
+  it('doble impacto duplica los puntos del jugador', () => {
+    expect(applyPlayerModifiers(6, 1, mods({ kind: 'MULTIPLY', value: 200 }), 'MAX')).toEqual({ total: 12, base: 6, delta: 6 });
   });
 
-  it('presión resta un % solo de los puntos positivos, sin tocar negativos', () => {
-    expect(applyCardModifiers(10, 1, [{ effect: 'WEAKEN', value: 20 }], 'MAX').total).toBe(8);
-    expect(applyCardModifiers(-2, 1, [{ effect: 'WEAKEN', value: 20 }], 'MAX').total).toBe(-2);
+  it('las penalizaciones porcentuales solo tocan los puntos positivos', () => {
+    expect(applyPlayerModifiers(10, 1, mods({ kind: 'PENALTY_PCT', value: 20 }), 'MAX').total).toBe(8);
+    expect(applyPlayerModifiers(-2, 1, mods({ kind: 'PENALTY_PCT', value: 20 }), 'MAX').total).toBe(-2);
   });
 
-  it('capitán + doble puntos: sin acumular (MAX) o acumulando (STACK)', () => {
-    expect(applyCardModifiers(5, 2, [{ effect: 'DOUBLE_POINTS', value: 200 }], 'MAX').total).toBe(10);
-    expect(applyCardModifiers(5, 2, [{ effect: 'DOUBLE_POINTS', value: 200 }], 'STACK').total).toBe(20);
+  it('las sumas planas se aplican antes que los porcentajes', () => {
+    // (10 + 3) con −50 % = 7, no 10 − 50 % + 3 = 8
+    expect(applyPlayerModifiers(10, 1, mods({ kind: 'ADD', value: 3 }, { kind: 'PENALTY_PCT', value: 50 }), 'MAX').total).toBe(7);
+    // Una resta plana puede dejar el total en negativo
+    expect(applyPlayerModifiers(2, 1, mods({ kind: 'ADD', value: -5 }), 'MAX').total).toBe(-3);
   });
 
-  it('orden: penalización antes que potenciación y capitán; un suplente sin entrar no suma', () => {
-    expect(applyCardModifiers(10, 1, [{ effect: 'DOUBLE_POINTS', value: 200 }, { effect: 'WEAKEN', value: 20 }], 'MAX').total).toBe(16);
-    expect(applyCardModifiers(10, 0, [{ effect: 'DOUBLE_POINTS', value: 200 }], 'MAX').total).toBe(0);
-    expect(applyCardModifiers(10, 1, [{ effect: 'DOUBLE_POINTS', value: 200 }, { effect: 'DOUBLE_POINTS', value: 200 }], 'MAX').total).toBe(20);
+  it('capitán + doble impacto: sin acumular (MAX) o acumulando (STACK)', () => {
+    expect(applyPlayerModifiers(5, 2, mods({ kind: 'MULTIPLY', value: 200 }), 'MAX').total).toBe(10);
+    expect(applyPlayerModifiers(5, 2, mods({ kind: 'MULTIPLY', value: 200 }), 'STACK').total).toBe(20);
+  });
+
+  it('los multiplicadores no se acumulan entre sí: se aplica el mayor', () => {
+    expect(applyPlayerModifiers(10, 1, mods({ kind: 'MULTIPLY', value: 200 }, { kind: 'MULTIPLY', value: 200 }), 'MAX').total).toBe(20);
+    expect(applyPlayerModifiers(10, 1, mods({ kind: 'MULTIPLY', value: 200 }, { kind: 'MULTIPLY', value: 300 }), 'MAX').total).toBe(30);
+  });
+
+  it('capitán maldito recorta solo el extra de la capitanía, nunca los puntos base', () => {
+    // 10 puntos, capitán x2 → 20. Con la mitad del extra: 10 × 1,5 = 15
+    expect(applyPlayerModifiers(10, 2, mods({ kind: 'CAPTAIN_PCT', value: 50 }), 'MAX').total).toBe(15);
+    // Sin capitanía no tiene nada que recortar
+    expect(applyPlayerModifiers(10, 1, mods({ kind: 'CAPTAIN_PCT', value: 50 }), 'MAX').total).toBe(10);
+  });
+
+  it('orden completo y suplente que no entra', () => {
+    expect(applyPlayerModifiers(10, 1, mods({ kind: 'MULTIPLY', value: 200 }, { kind: 'PENALTY_PCT', value: 20 }), 'MAX').total).toBe(16);
+    expect(applyPlayerModifiers(10, 0, mods({ kind: 'MULTIPLY', value: 200 }), 'MAX').total).toBe(0);
+  });
+
+  it('el resultado es reproducible: base + delta siempre son el total', () => {
+    const combos: PlayerModifier[][] = [
+      [{ kind: 'ADD', value: 3 }],
+      [{ kind: 'PENALTY_PCT', value: 50 }, { kind: 'MULTIPLY', value: 200 }],
+      [{ kind: 'ADD', value: -4 }, { kind: 'MULTIPLY', value: 200 }, { kind: 'CAPTAIN_PCT', value: 50 }],
+    ];
+    for (const m of combos) {
+      for (const [points, mult] of [[7, 1], [7, 2], [-3, 1], [0, 2]] as const) {
+        const r = applyPlayerModifiers(points, mult, m, 'MAX');
+        expect(r.base + r.delta).toBe(r.total);
+      }
+    }
+  });
+});
+
+describe('cartas: catálogo', () => {
+  it('cada carta declara una categoría, un efecto y un objetivo conocidos', () => {
+    for (const c of CARD_CATALOG) {
+      expect(CARD_CATEGORIES, c.code).toContain(c.category);
+      expect(CARD_RARITIES, c.code).toContain(c.rarity);
+      expect(CARD_EFFECTS, c.code).toContain(c.effect);
+      expect(CARD_TARGETS, c.code).toContain(c.target);
+      expect(CARD_ACTIVATIONS, c.code).toContain(c.activation);
+    }
+  });
+
+  it('no hay códigos repetidos y las cartas desactivadas explican por qué', () => {
+    const codes = CARD_CATALOG.map((c) => c.code);
+    expect(new Set(codes).size).toBe(codes.length);
+    for (const c of CARD_CATALOG.filter((x) => x.isActive === false)) {
+      expect(c.unavailableReason, c.code).toBeTruthy();
+      expect(c.obtainable, c.code).toBe(false);
+    }
   });
 });
 

@@ -237,18 +237,31 @@ export interface EconomyTransaction {
   createdAt: string;
 }
 
+export type CardCategory = 'BOOST' | 'WEAKEN' | 'DEFENSE' | 'ECONOMY' | 'TACTIC' | 'LEGENDARY';
+export type CardRarity = 'COMMON' | 'UNCOMMON' | 'RARE' | 'EPIC' | 'LEGENDARY';
+export type CardActivationType = 'INSTANT' | 'PRE_GAMEWEEK' | 'REACTIVE' | 'POST_SCORING';
+
 export interface PowerUpCard {
   id: number;
   code: string;
   name: string;
   description: string;
-  effect: 'DOUBLE_POINTS' | 'WEAKEN';
-  rarity: 'COMMON' | 'RARE' | 'EPIC' | 'LEGENDARY';
+  category: CardCategory;
+  effect: string;
+  rarity: CardRarity;
   effectValue: number;
-  target: 'OWN_PLAYER' | 'RIVAL_PLAYER';
+  activation: CardActivationType;
+  target: string;
+  config: Record<string, number | string>;
   isActive: boolean;
   obtainable: boolean;
   maxPerGameweek: number;
+  /** La carta pide elegir un jugador antes de activarla. */
+  needsPlayer: boolean;
+  /** La carta pide elegir un equipo rival antes de activarla. */
+  needsRival: boolean;
+  /** Si no está activa, por qué. */
+  unavailableReason: string | null;
 }
 
 export type LetterState = 'correct' | 'present' | 'absent';

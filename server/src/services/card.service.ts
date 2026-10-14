@@ -1,8 +1,9 @@
 import { prisma, type Tx } from '../lib/prisma';
 import { badRequest, conflict, forbidden, notFound } from '../lib/errors';
 import { playerSelect, parseCrest } from '../lib/dto';
-import { DEFAULT_CARDS } from '../domain/constants';
-import type { CardModifier } from '../domain/economy';
+import { CARD_CATALOG, isAttack, type CardEffect, type CardTarget, type PlayerModifier } from '../domain/cards';
+import { assertLimits, needsPlayer, needsRival, parseConfig, resolveDefense, resolveTarget, type CardSpec } from './card-engine';
+import { changeWallet } from './economy.service';
 import { getSettings } from './settings.service';
 import { getGameweekContext } from './gameweek.service';
 import { aggFor, getPlayerAggregates, toPlayerDTO } from './player-stats.service';
@@ -11,21 +12,74 @@ import { isUniqueViolation } from './economy.service';
 import { resolveTeam } from './team.service';
 
 /**
- * Cartas potenciadoras
- * ────────────────────
- * - Cada carta del inventario es de un solo uso (TeamCard). Se activa para la próxima jornada, antes de su cierre.
- * - Activación idempotente: `requestId` único + paso AVAILABLE → ACTIVE condicional (un doble clic no gasta dos cartas).
- * - Hasta el cierre se puede cancelar (la carta vuelve al inventario); después queda bloqueada.
- * - El efecto se aplica en el motor de puntuación (domain/economy.ts → applyCardModifiers): nunca toca estadísticas reales.
+ * Fantasy Cards
+ * ─────────────
+ * - El inventario es del EQUIPO, y un equipo es un (usuario, liga): las cartas de una liga nunca se ven
+ *   ni se usan en otra, y el objetivo de un ataque tiene que ser de la misma liga.
+ * - Cada carta del inventario es de un solo uso (TeamCard). Según su tipo se resuelve al instante
+ *   (dinero), antes del cierre de la jornada, al recibir un ataque (escudos) o con los puntos ya
+ *   calculados (apuestas y bonos por rendimiento).
+ * - Activación idempotente: `requestId` único + paso AVAILABLE → ACTIVE condicional (un doble clic no
+ *   gasta dos cartas). Si algo falla, la transacción se deshace y la carta sigue en el inventario.
+ * - Los efectos nunca tocan las estadísticas reales: se guardan como modificadores aparte y la
+ *   puntuación oficial siempre se puede reconstruir (ver domain/cards.ts → applyPlayerModifiers).
  * - Se obtienen como recompensa (rachas, desafíos, eventos, administración): no hay compra con dinero real.
  */
 
+/** Alta y actualización del catálogo. Respeta los valores que la administración haya editado. */
 export async function ensureCardCatalog() {
-  for (const c of DEFAULT_CARDS) {
+  for (const c of CARD_CATALOG) {
+    const data = {
+      name: c.name,
+      description: c.description,
+      category: c.category,
+      effect: c.effect,
+      rarity: c.rarity,
+      effectValue: c.effectValue,
+      activation: c.activation,
+      target: c.target,
+      config: JSON.stringify(c.config ?? {}),
+      maxPerGameweek: c.maxPerGameweek ?? 1,
+      isActive: c.isActive ?? true,
+      obtainable: c.obtainable ?? true,
+    };
     const exists = await prisma.powerUpCard.findUnique({ where: { code: c.code } });
-    if (!exists) await prisma.powerUpCard.create({ data: { ...c } });
+    if (!exists) {
+      await prisma.powerUpCard.create({ data: { code: c.code, ...data } });
+      continue;
+    }
+    // Si el catálogo ha redefinido la carta (otro efecto), se reescribe entera: mantener el valor viejo
+    // dejaría combinaciones imposibles, como un efecto de jugador con un objetivo de equipo.
+    const redefined = exists.effect !== data.effect || exists.target !== data.target;
+    await prisma.powerUpCard.update({
+      where: { code: c.code },
+      data: {
+        // La identidad y la mecánica las manda siempre el catálogo
+        name: data.name,
+        description: data.description,
+        category: data.category,
+        effect: data.effect,
+        activation: data.activation,
+        target: data.target,
+        config: data.config,
+        // El equilibrio lo puede ajustar la administración, salvo que la carta se haya redefinido
+        ...(redefined ? { effectValue: data.effectValue, maxPerGameweek: data.maxPerGameweek, rarity: data.rarity } : {}),
+        ...(c.isActive === false ? { isActive: false, obtainable: false } : {}),
+      },
+    });
   }
 }
+
+const specOf = (c: { code: string; effect: string; target: string; category: string; rarity: string; effectValue: number; maxPerGameweek: number; config: string }): CardSpec => ({
+  code: c.code,
+  effect: c.effect as CardEffect,
+  target: c.target as CardTarget,
+  category: c.category,
+  rarity: c.rarity,
+  effectValue: c.effectValue,
+  maxPerGameweek: c.maxPerGameweek,
+  config: parseConfig(c.config),
+});
 
 async function log(db: Tx, teamId: number, teamCardId: number | null, action: string, details: object = {}) {
   await db.cardUsageLog.create({ data: { teamId, teamCardId, action, details: JSON.stringify(details) } });
@@ -66,15 +120,16 @@ export async function getCards(userId: string, leagueId?: number | null) {
       orderBy: { createdAt: 'desc' },
       take: 50,
     }),
+    // Ataques recibidos: también los que siguen vivos y los bloqueados, para poder verlos y anularlos
     prisma.cardActivation.findMany({
-      where: { targetTeamId: team.id, teamId: { not: team.id }, status: 'APPLIED' },
+      where: { targetTeamId: team.id, teamId: { not: team.id }, status: { in: ['ACTIVE', 'BLOCKED', 'APPLIED'] } },
       include: { card: true, team: { select: { id: true, name: true } } },
-      orderBy: { appliedAt: 'desc' },
-      take: 20,
+      orderBy: { id: 'desc' },
+      take: 30,
     }),
     prisma.powerUpCard.findMany({ orderBy: { id: 'asc' } }),
   ]);
-  const playerIds = [...new Set([...activations, ...received].map((a) => a.targetPlayerId))];
+  const playerIds = [...new Set([...activations, ...received].map((a) => a.targetPlayerId).filter((id): id is number => id !== null))];
   const players = await prisma.player.findMany({ where: { id: { in: playerIds } }, select: { id: true, displayName: true, photoUrl: true, position: true, club: { select: { shortName: true } } } });
   const playerById = new Map(players.map((p) => [p.id, p]));
   return {
@@ -90,18 +145,64 @@ export async function getCards(userId: string, leagueId?: number | null) {
       effectValue: a.effectValue,
       pointsDelta: a.pointsDelta,
       card: publicCard(a.card),
-      targetPlayer: playerById.get(a.targetPlayerId) ?? null,
+      targetPlayer: a.targetPlayerId ? (playerById.get(a.targetPlayerId) ?? null) : null,
       targetTeam: a.targetTeam,
+      moneyDelta: a.moneyDelta,
+      blocked: a.status === 'BLOCKED',
       cancellable: a.status === 'ACTIVE' && !!gw && a.gameweekId === gw.id && gw.deadline > new Date(),
       createdAt: a.createdAt,
     })),
-    received: received.map((a) => ({ id: a.id, gameweekId: a.gameweekId, pointsDelta: a.pointsDelta, card: publicCard(a.card), fromTeam: a.team, targetPlayer: playerById.get(a.targetPlayerId) ?? null })),
+    received: received.map((a) => ({
+      id: a.id,
+      gameweekId: a.gameweekId,
+      pointsDelta: a.pointsDelta,
+      blocked: a.status === 'BLOCKED',
+      status: a.status,
+      card: publicCard(a.card),
+      fromTeam: a.team,
+      targetPlayer: a.targetPlayerId ? (playerById.get(a.targetPlayerId) ?? null) : null,
+    })),
     catalog: catalog.map(publicCard),
   };
 }
 
-function publicCard(c: { id: number; code: string; name: string; description: string; effect: string; rarity: string; effectValue: number; target: string; isActive: boolean; obtainable: boolean; maxPerGameweek: number }) {
-  return { id: c.id, code: c.code, name: c.name, description: c.description, effect: c.effect, rarity: c.rarity, effectValue: c.effectValue, target: c.target, isActive: c.isActive, obtainable: c.obtainable, maxPerGameweek: c.maxPerGameweek };
+/** Ficha de carta que ve el navegador: todo lo que necesita para explicarla y pedir su objetivo. */
+function publicCard(c: {
+  id: number;
+  code: string;
+  name: string;
+  description: string;
+  category: string;
+  effect: string;
+  rarity: string;
+  effectValue: number;
+  activation: string;
+  target: string;
+  config: string;
+  isActive: boolean;
+  obtainable: boolean;
+  maxPerGameweek: number;
+}) {
+  const catalog = CARD_CATALOG.find((d) => d.code === c.code);
+  return {
+    id: c.id,
+    code: c.code,
+    name: c.name,
+    description: c.description,
+    category: c.category,
+    effect: c.effect,
+    rarity: c.rarity,
+    effectValue: c.effectValue,
+    activation: c.activation,
+    target: c.target,
+    config: parseConfig(c.config),
+    isActive: c.isActive,
+    obtainable: c.obtainable,
+    maxPerGameweek: c.maxPerGameweek,
+    needsPlayer: needsPlayer(c.target as CardTarget),
+    needsRival: needsRival(c.target as CardTarget),
+    unavailableReason: c.isActive ? null : (catalog?.unavailableReason ?? 'Carta desactivada por la administración'),
+  };
 }
 
 /** Rivales de la carta de presión: los demás equipos de la misma liga que el equipo que la usa. */
@@ -137,13 +238,19 @@ export async function targetSquad(userId: string, teamId: number, leagueId?: num
 
 export interface ActivateInput {
   teamCardId: number;
-  targetPlayerId: number;
+  targetPlayerId?: number | null;
   targetTeamId?: number | null;
+  /** Para el antídoto: qué ataque recibido se quiere anular. */
+  targetActivationId?: number | null;
   requestId: string;
 }
 
+/**
+ * Activa una carta. Todo ocurre en una transacción: validar el objetivo, reservar la carta
+ * (AVAILABLE → ACTIVE, condicional), comprobar los límites, registrar la activación y resolver su
+ * efecto inmediato. Si cualquier paso falla no se consume nada.
+ */
 export async function activateCard(userId: string, input: ActivateInput, leagueId?: number | null) {
-  const s = await getSettings();
   const team = await teamOf(userId, leagueId);
 
   // Idempotencia: el mismo requestId devuelve la activación ya creada
@@ -158,56 +265,79 @@ export async function activateCard(userId: string, input: ActivateInput, leagueI
   if (teamCard.status !== 'AVAILABLE') throw conflict('Esta carta ya se ha usado o está activada');
   if (!teamCard.card.isActive) throw badRequest('Esta carta está desactivada temporalmente');
 
+  const spec = specOf(teamCard.card);
   const gw = await cardGameweek();
   if (!gw || gw.deadline <= new Date()) throw badRequest('No hay ninguna jornada abierta para activar cartas');
-
-  const effect = teamCard.card.effect;
-  let targetTeamId = team.id;
-  if (teamCard.card.target === 'OWN_PLAYER') {
-    const inSquad = await prisma.fantasyTeamPlayer.findUnique({ where: { teamId_playerId: { teamId: team.id, playerId: input.targetPlayerId } } });
-    if (!inSquad) throw badRequest('Elige un jugador de tu plantilla');
-  } else {
-    if (!input.targetTeamId || input.targetTeamId === team.id) throw badRequest('Elige un equipo rival');
-    if (!(await sameLeague(team.id, input.targetTeamId))) throw forbidden('Solo puedes usar esta carta contra rivales de tu liga');
-    const inSquad = await prisma.fantasyTeamPlayer.findUnique({ where: { teamId_playerId: { teamId: input.targetTeamId, playerId: input.targetPlayerId } } });
-    if (!inSquad) throw badRequest('Ese jugador no está en la plantilla del rival');
-    targetTeamId = input.targetTeamId;
+  if (needsRival(spec.target) && (!team.leagueId || team.league?.type === 'GLOBAL')) {
+    throw badRequest('Esta carta solo se puede usar en una liga con rivales');
   }
 
   try {
-    const activation = await prisma.$transaction(async (tx) => {
-      // Serializa las activaciones del equipo (y del rival afectado) para que los límites se cumplan con peticiones simultáneas
+    const result = await prisma.$transaction(async (tx) => {
+      // Serializa las activaciones de los equipos implicados: los límites se cumplen aunque lleguen a la vez
       await tx.fantasyTeam.update({ where: { id: team.id }, data: { updatedAt: new Date() } });
-      if (targetTeamId !== team.id) await tx.fantasyTeam.update({ where: { id: targetTeamId }, data: { updatedAt: new Date() } });
+      const target = await resolveTarget(tx, spec, team.id, input, sameLeague);
+      if (target.targetTeamId !== team.id) await tx.fantasyTeam.update({ where: { id: target.targetTeamId }, data: { updatedAt: new Date() } });
 
       const claimed = await tx.teamCard.updateMany({ where: { id: teamCard.id, status: 'AVAILABLE' }, data: { status: 'ACTIVE' } });
       if (claimed.count === 0) throw conflict('Esta carta ya se ha usado o está activada');
 
-      const mine = await tx.cardActivation.findMany({ where: { teamId: team.id, gameweekId: gw.id, status: 'ACTIVE' }, select: { effect: true, targetPlayerId: true, targetTeamId: true } });
-      if (mine.length >= s.card_max_active_per_gameweek) throw badRequest(`Máximo ${s.card_max_active_per_gameweek} cartas activas por jornada`);
-      if (mine.filter((a) => a.effect === effect).length >= teamCard.card.maxPerGameweek) throw badRequest(`Ya has activado ${teamCard.card.maxPerGameweek} carta(s) de este tipo en la ${gw.name}`);
-      if (mine.some((a) => a.effect === effect && a.targetPlayerId === input.targetPlayerId && a.targetTeamId === targetTeamId)) throw badRequest('Ese jugador ya tiene esta carta en la jornada');
-      if (effect === 'WEAKEN') {
-        const onTarget = await tx.cardActivation.count({ where: { gameweekId: gw.id, status: 'ACTIVE', effect: 'WEAKEN', targetTeamId, targetPlayerId: input.targetPlayerId } });
-        if (onTarget >= s.card_weaken_max_per_target) throw badRequest('Ese jugador ya está bajo presión esta jornada');
-      }
-      const created = await tx.cardActivation.create({
+      await assertLimits(tx, spec, { gameweekId: gw.id, ownTeamId: team.id, targetTeamId: target.targetTeamId, targetPlayerId: target.targetPlayerId });
+
+      const activation = await tx.cardActivation.create({
         data: {
           teamCardId: teamCard.id,
           teamId: team.id,
           cardId: teamCard.cardId,
           gameweekId: gw.id,
-          effect,
+          effect: spec.effect,
           effectValue: teamCard.card.effectValue,
-          targetPlayerId: input.targetPlayerId,
-          targetTeamId,
+          targetPlayerId: target.targetPlayerId,
+          targetTeamId: target.targetTeamId,
           requestId: input.requestId,
         },
       });
-      await log(tx, team.id, teamCard.id, 'ACTIVATED', { gameweekId: gw.id, effect, targetPlayerId: input.targetPlayerId, targetTeamId });
-      return created;
+
+      // ── Efectos que se resuelven en el acto
+      let blocked: Awaited<ReturnType<typeof resolveDefense>> = null;
+      let money = 0;
+
+      if (spec.effect === 'MONEY') {
+        money = await payCard(tx, team, activation.id, teamCard.card.name, teamCard.card.effectValue);
+      } else if (spec.effect === 'ANTIDOTE') {
+        await applyAntidote(tx, team.id, gw.id, activation.id, input.targetActivationId ?? null);
+      } else if (isAttack(spec.effect)) {
+        // Un escudo del rival puede parar el ataque nada más lanzarlo
+        blocked = await resolveDefense(tx, { id: activation.id, effect: spec.effect, targetTeamId: target.targetTeamId, targetPlayerId: target.targetPlayerId, gameweekId: gw.id });
+      }
+
+      // Las cartas instantáneas quedan cerradas aquí mismo
+      if (spec.effect === 'MONEY') {
+        await tx.cardActivation.update({ where: { id: activation.id }, data: { status: 'APPLIED', appliedAt: new Date(), moneyDelta: money } });
+        await tx.teamCard.update({ where: { id: teamCard.id }, data: { status: 'USED', usedAt: new Date() } });
+      }
+
+      await log(tx, team.id, teamCard.id, 'ACTIVATED', {
+        gameweekId: gw.id,
+        effect: spec.effect,
+        targetPlayerId: target.targetPlayerId,
+        targetTeamId: target.targetTeamId,
+        blocked: !!blocked,
+        money,
+      });
+      return { activation, target, blocked, money };
     });
-    return { activationId: activation.id, status: activation.status, gameweekId: gw.id, duplicate: false };
+
+    await notifyActivation(team, teamCard.card, result);
+    invalidateNothing();
+    return {
+      activationId: result.activation.id,
+      status: result.blocked ? 'BLOCKED' : result.activation.status,
+      gameweekId: gw.id,
+      blocked: !!result.blocked,
+      money: result.money,
+      duplicate: false,
+    };
   } catch (err) {
     if (isUniqueViolation(err)) {
       const again = await prisma.cardActivation.findUnique({ where: { requestId: input.requestId } });
@@ -216,6 +346,74 @@ export async function activateCard(userId: string, input: ActivateInput, leagueI
     await log(prisma, team.id, teamCard.id, 'REJECTED', { reason: err instanceof Error ? err.message : 'error' });
     throw err;
   }
+}
+
+/** Marcador vacío: las cartas no invalidan cachés de jugadores, pero deja el punto de extensión claro. */
+const invalidateNothing = () => undefined;
+
+/** Abona el dinero de una carta económica, con tope por jornada y clave de idempotencia. */
+async function payCard(tx: Tx, team: { id: number; leagueId: number | null; economyVersion: number }, activationId: number, cardName: string, amount: number) {
+  if (team.economyVersion !== 2) throw badRequest('Las cartas económicas solo funcionan en una liga con economía propia');
+  const s = await getSettings();
+  const gw = await cardGameweek();
+  const already = await tx.cardActivation.aggregate({
+    where: { teamId: team.id, gameweekId: gw?.id ?? 0, status: 'APPLIED', effect: 'MONEY' },
+    _sum: { moneyDelta: true },
+  });
+  const paid = already._sum.moneyDelta ?? 0;
+  const left = Math.max(0, s.card_money_cap_per_gameweek - paid);
+  const credit = Math.min(amount, left);
+  if (credit <= 0) throw badRequest('Ya has alcanzado el máximo de dinero por cartas en esta jornada');
+  await changeWallet(tx, {
+    teamId: team.id,
+    amount: credit,
+    type: 'CARD_REWARD',
+    description: `Carta «${cardName}»`,
+    leagueId: team.leagueId,
+    reference: `card-activation:${activationId}`,
+    operationId: `card:money:${activationId}`,
+  });
+  return credit;
+}
+
+/** El antídoto anula un ataque que el equipo ya tiene encima en la jornada. */
+async function applyAntidote(tx: Tx, teamId: number, gameweekId: number, activationId: number, targetActivationId: number | null) {
+  const where = { targetTeamId: teamId, gameweekId, status: 'ACTIVE' as const, NOT: { teamId } };
+  const attacks = await tx.cardActivation.findMany({ where, orderBy: { id: 'asc' } });
+  const victim = targetActivationId ? attacks.find((a) => a.id === targetActivationId) : attacks.find((a) => isAttack(a.effect));
+  if (!victim) throw badRequest('No tienes ningún ataque activo que anular en esta jornada');
+  if (!isAttack(victim.effect)) throw badRequest('Ese efecto no se puede anular con un antídoto');
+  await tx.cardActivation.update({ where: { id: victim.id }, data: { status: 'BLOCKED', blockedById: activationId, result: JSON.stringify({ blockedBy: 'ANTIDOTE' }) } });
+  await tx.cardActivation.update({ where: { id: activationId }, data: { status: 'CONSUMED', appliedAt: new Date(), result: JSON.stringify({ cancelled: victim.id }) } });
+  await tx.teamCard.updateMany({ where: { id: (await tx.cardActivation.findUniqueOrThrow({ where: { id: activationId }, select: { teamCardId: true } })).teamCardId }, data: { status: 'USED', usedAt: new Date() } });
+}
+
+/** Avisos a quien ataca, a quien lo recibe y a quien lo bloquea. */
+async function notifyActivation(
+  team: { id: number; userId: string; name: string },
+  card: { name: string },
+  result: { activation: { id: number }; target: { targetTeamId: number; targetPlayerId: number | null }; blocked: { shieldEffect: string } | null; money: number },
+) {
+  if (result.target.targetTeamId === team.id) return;
+  const rival = await prisma.fantasyTeam.findUnique({ where: { id: result.target.targetTeamId }, select: { userId: true, name: true } });
+  if (!rival) return;
+  const player = result.target.targetPlayerId ? await prisma.player.findUnique({ where: { id: result.target.targetPlayerId }, select: { displayName: true } }) : null;
+  const sobre = player ? ` sobre ${player.displayName}` : '';
+  const inputs: NotificationInput[] = [
+    {
+      userId: rival.userId,
+      type: 'LEAGUE',
+      title: result.blocked ? 'Has bloqueado un ataque' : 'Te han atacado con una carta',
+      message: result.blocked
+        ? `${team.name} usó «${card.name}»${sobre} y tu defensa lo paró.`
+        : `${team.name} ha usado «${card.name}»${sobre} contra tu equipo.`,
+      link: '/cards',
+    },
+  ];
+  if (result.blocked) {
+    inputs.push({ userId: team.userId, type: 'LEAGUE', title: 'Tu carta fue neutralizada', message: `${rival.name} bloqueó tu «${card.name}»${sobre}.`, link: '/cards' });
+  }
+  await notifyMany(inputs);
 }
 
 export async function cancelActivation(userId: string, activationId: number, leagueId?: number | null) {
@@ -234,38 +432,175 @@ export async function cancelActivation(userId: string, activationId: number, lea
 }
 
 /**
- * Modificadores de cartas por equipo y jugador para una jornada.
- * DOUBLE_POINTS afecta al equipo que la usa; WEAKEN al equipo rival elegido.
+ * Modificadores de cartas de una jornada, ya desplegados por jugador.
+ *
+ * Aquí se traduce cada activación a los modificadores concretos que aplicará la puntuación: las cartas
+ * de equipo (bonus al once, castigo a todos los titulares, castigo por posición) se expanden jugador a
+ * jugador leyendo la alineación, y las de capitán localizan al capitán del rival. Las activaciones
+ * bloqueadas por un escudo o un antídoto no producen ningún modificador.
  */
 export async function cardModifiersForGameweek(gameweekId: number) {
-  const activations = await prisma.cardActivation.findMany({ where: { gameweekId, status: { in: ['ACTIVE', 'APPLIED'] } } });
-  const byTeam = new Map<number, Map<number, CardModifier[]>>();
-  for (const a of activations) {
-    const teamId = a.effect === 'WEAKEN' ? a.targetTeamId : a.teamId;
-    const players = byTeam.get(teamId) ?? new Map<number, CardModifier[]>();
-    players.set(a.targetPlayerId, [...(players.get(a.targetPlayerId) ?? []), { effect: a.effect as CardModifier['effect'], value: a.effectValue }]);
+  const activations = await prisma.cardActivation.findMany({
+    where: { gameweekId, status: { in: ['ACTIVE', 'APPLIED'] } },
+    include: { card: { select: { config: true, activation: true } } },
+  });
+  const byTeam = new Map<number, Map<number, PlayerModifier[]>>();
+  if (!activations.length) return { byTeam, activations };
+
+  // Alineaciones de los equipos afectados: hacen falta para las cartas de equipo y de capitán
+  const teamIds = [...new Set(activations.flatMap((a) => [a.teamId, a.targetTeamId]))];
+  const lineups = await prisma.lineup.findMany({
+    where: { gameweekId, teamId: { in: teamIds } },
+    select: { teamId: true, captainId: true, players: { where: { role: 'STARTER' }, select: { playerId: true, player: { select: { position: true } } } } },
+  });
+  const lineupOf = new Map(lineups.map((l) => [l.teamId, l]));
+
+  const add = (teamId: number, playerId: number, mod: PlayerModifier) => {
+    const players = byTeam.get(teamId) ?? new Map<number, PlayerModifier[]>();
+    players.set(playerId, [...(players.get(playerId) ?? []), mod]);
     byTeam.set(teamId, players);
+  };
+
+  for (const a of activations) {
+    // Solo las cartas de jornada modifican puntos; las instantáneas y las de post-cálculo van aparte
+    if (a.card.activation !== 'PRE_GAMEWEEK') continue;
+    const affected = isAttack(a.effect) ? a.targetTeamId : a.teamId;
+    const lineup = lineupOf.get(affected);
+    const starters = lineup?.players ?? [];
+
+    switch (a.effect as CardEffect) {
+      case 'DOUBLE_POINTS':
+        if (a.targetPlayerId) add(affected, a.targetPlayerId, { kind: 'MULTIPLY', value: a.effectValue, activationId: a.id });
+        break;
+      case 'FLAT_BONUS':
+        if (a.targetPlayerId) add(affected, a.targetPlayerId, { kind: 'ADD', value: a.effectValue, activationId: a.id });
+        break;
+      case 'FLAT_PENALTY':
+        if (a.targetPlayerId) add(affected, a.targetPlayerId, { kind: 'ADD', value: -a.effectValue, activationId: a.id });
+        break;
+      case 'WEAKEN':
+        if (a.targetPlayerId) add(affected, a.targetPlayerId, { kind: 'PENALTY_PCT', value: a.effectValue, activationId: a.id });
+        break;
+      case 'TEAM_BONUS':
+        for (const p of starters) add(affected, p.playerId, { kind: 'ADD', value: a.effectValue, activationId: a.id });
+        break;
+      case 'TEAM_PENALTY':
+        for (const p of starters) add(affected, p.playerId, { kind: 'ADD', value: -a.effectValue, activationId: a.id });
+        break;
+      case 'POSITION_PENALTY': {
+        const position = String(parseConfig(a.card.config).position ?? 'DEF');
+        for (const p of starters.filter((x) => x.player.position === position)) add(affected, p.playerId, { kind: 'ADD', value: -a.effectValue, activationId: a.id });
+        break;
+      }
+      case 'CAPTAIN_PENALTY':
+        if (lineup?.captainId) add(affected, lineup.captainId, { kind: 'CAPTAIN_PCT', value: a.effectValue, activationId: a.id });
+        break;
+      default:
+        break; // escudos, antídotos, dinero y post-cálculo no entran aquí
+    }
   }
   return { byTeam, activations };
 }
 
-/** Al cerrar la jornada: las cartas activas pasan a aplicadas (definitivo) y se avisa a los rivales afectados. */
-export async function finalizeCardsForGameweek(gameweekId: number, deltas: Map<string, number>) {
-  const active = await prisma.cardActivation.findMany({ where: { gameweekId, status: 'ACTIVE' }, include: { card: true, team: { select: { name: true } }, targetTeam: { select: { userId: true } } } });
+export interface PostScoringContext {
+  /** Puntos del equipo con las cartas de jornada ya aplicadas, antes de los efectos de post-cálculo. */
+  teamTotal: number;
+  /** Puntos definitivos de cada jugador de la alineación. */
+  playerPoints: Map<number, number>;
+  /** Puntos que le han quitado las cartas rivales (valor positivo). */
+  pointsLost: number;
+}
+
+export interface PostScoringOutcome {
+  activationId: number;
+  points: number;
+  money: number;
+}
+
+/** Activaciones de post-cálculo de la jornada, agrupadas por equipo. */
+export async function postScoringActivations(gameweekId: number) {
+  const rows = await prisma.cardActivation.findMany({
+    where: { gameweekId, status: { in: ['ACTIVE', 'APPLIED'] }, card: { activation: 'POST_SCORING' } },
+    include: { card: { select: { config: true } } },
+  });
+  const byTeam = new Map<number, typeof rows>();
+  for (const a of rows) byTeam.set(a.teamId, [...(byTeam.get(a.teamId) ?? []), a]);
+  return byTeam;
+}
+
+/**
+ * Resuelve una carta de post-cálculo con los puntos ya conocidos. Es una función pura respecto a la base
+ * de datos: devuelve cuántos puntos y cuánto dinero genera, y quien la llama decide cuándo abonarlos.
+ */
+export function evaluatePostScoring(
+  a: { id: number; effect: string; effectValue: number; targetPlayerId: number | null; card: { config: string } },
+  ctx: PostScoringContext,
+): PostScoringOutcome {
+  const config = parseConfig(a.card.config);
+  const none = { activationId: a.id, points: 0, money: 0 };
+  switch (a.effect as CardEffect) {
+    case 'SCORE_BET': {
+      const threshold = Number(config.threshold ?? 0);
+      // Sobre un jugador concreto o sobre el total del equipo, según a qué apunte la carta
+      const value = a.targetPlayerId ? (ctx.playerPoints.get(a.targetPlayerId) ?? 0) : ctx.teamTotal;
+      return value >= threshold ? { ...none, points: a.effectValue } : none;
+    }
+    case 'TEAM_THRESHOLD_MONEY':
+      return ctx.teamTotal >= Number(config.threshold ?? 0) ? { ...none, money: a.effectValue } : none;
+    case 'PLAYER_PERFORMANCE_MONEY': {
+      const points = Math.max(0, a.targetPlayerId ? (ctx.playerPoints.get(a.targetPlayerId) ?? 0) : 0);
+      const cap = Number(config.maxMoney ?? Number.MAX_SAFE_INTEGER);
+      return { ...none, money: Math.min(cap, points * a.effectValue) };
+    }
+    case 'RECOVER_POINTS':
+      return { ...none, points: Math.min(a.effectValue, Math.max(0, ctx.pointsLost)) };
+    default:
+      return none;
+  }
+}
+
+/**
+ * Cierre de la jornada: las cartas vivas pasan a aplicadas con su resultado definitivo, se abona el
+ * dinero de las cartas de post-cálculo (una sola vez, con clave de idempotencia) y se avisa a los
+ * afectados. Repetir el cierre no vuelve a pagar ni a duplicar nada.
+ */
+export async function finalizeCardsForGameweek(gameweekId: number, deltas: Map<string, number>, money: Map<number, number> = new Map()) {
+  const pending = await prisma.cardActivation.findMany({
+    where: { gameweekId, status: { in: ['ACTIVE', 'BLOCKED'] } },
+    include: { card: true, team: { select: { name: true, id: true, leagueId: true, economyVersion: true } }, targetTeam: { select: { userId: true, name: true } } },
+  });
   const notifications: NotificationInput[] = [];
-  for (const a of active) {
-    const affectedTeam = a.effect === 'WEAKEN' ? a.targetTeamId : a.teamId;
-    const delta = deltas.get(`${affectedTeam}:${a.targetPlayerId}`) ?? 0;
+
+  for (const a of pending) {
+    const affectedTeam = isAttack(a.effect) ? a.targetTeamId : a.teamId;
+    const delta = a.status === 'BLOCKED' ? 0 : (deltas.get(`${affectedTeam}:${a.targetPlayerId ?? 0}`) ?? 0);
+    const reward = money.get(a.id) ?? 0;
+
     await prisma.$transaction(async (tx) => {
-      const done = await tx.cardActivation.updateMany({ where: { id: a.id, status: 'ACTIVE' }, data: { status: 'APPLIED', appliedAt: new Date(), pointsDelta: delta } });
-      if (done.count === 0) return;
+      const done = await tx.cardActivation.updateMany({
+        where: { id: a.id, status: a.status },
+        data: { status: 'APPLIED', appliedAt: new Date(), pointsDelta: delta, moneyDelta: reward },
+      });
+      if (done.count === 0) return; // otra pasada ya la cerró
       await tx.teamCard.update({ where: { id: a.teamCardId }, data: { status: 'USED', usedAt: new Date() } });
-      await log(tx, a.teamId, a.teamCardId, 'APPLIED', { gameweekId, pointsDelta: delta });
+      if (reward > 0 && a.team.economyVersion === 2) {
+        await changeWallet(tx, {
+          teamId: a.teamId,
+          amount: reward,
+          type: 'CARD_REWARD',
+          description: `Carta «${a.card.name}» (jornada ${gameweekId})`,
+          leagueId: a.team.leagueId,
+          reference: `card-activation:${a.id}`,
+          operationId: `card:post:${a.id}`,
+        });
+      }
+      await log(tx, a.teamId, a.teamCardId, 'APPLIED', { gameweekId, pointsDelta: delta, moneyDelta: reward, blocked: a.status === 'BLOCKED' });
     });
-    if (a.effect === 'WEAKEN') {
+
+    if (isAttack(a.effect) && a.status !== 'BLOCKED') {
       notifications.push({
         userId: a.targetTeam.userId,
-        type: 'SYSTEM',
+        type: 'LEAGUE',
         title: `${a.team.name} usó «${a.card.name}» contra tu equipo`,
         message: `Efecto en la jornada ${gameweekId}: ${delta} puntos.`,
         link: '/cards',
@@ -273,7 +608,21 @@ export async function finalizeCardsForGameweek(gameweekId: number, deltas: Map<s
     }
   }
   await notifyMany(notifications);
-  return { applied: active.length };
+  return { applied: pending.length };
+}
+
+/**
+ * Carta al azar entre las obtenibles, ponderada por rareza (las raras caen menos). La elección la hace
+ * el servidor y la concesión es idempotente gracias a `sourceRef`.
+ */
+export async function grantRandomCard(db: Tx, input: { teamId: number; source: string; sourceRef: string }) {
+  const pool = await db.powerUpCard.findMany({ where: { obtainable: true, isActive: true } });
+  if (!pool.length) return null;
+  const weightOf = (rarity: string) => ({ COMMON: 50, UNCOMMON: 28, RARE: 14, EPIC: 6, LEGENDARY: 2 })[rarity] ?? 10;
+  const total = pool.reduce((sum, c) => sum + weightOf(c.rarity), 0);
+  let pick = Math.random() * total;
+  const chosen = pool.find((c) => (pick -= weightOf(c.rarity)) <= 0) ?? pool[0];
+  return grantCard(db, { teamId: input.teamId, cardCode: chosen.code, source: input.source, sourceRef: input.sourceRef });
 }
 
 /** Concesión manual desde administración (eventos, compensaciones). */

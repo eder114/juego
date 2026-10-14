@@ -15,7 +15,7 @@ import {
 import { dictionarySizes, normalizeGuess, pickDailyWord, revealPlayer } from './wordle.service';
 import { getSettings, streakMilestones, wordleRewards } from './settings.service';
 import { changeWallet, creditClassicBudget, isUniqueViolation } from './economy.service';
-import { grantCard } from './card.service';
+import { grantCard, grantRandomCard } from './card.service';
 import { findTeam } from './team.service';
 
 /**
@@ -202,6 +202,11 @@ export async function submitWordleGuess(userId: string, rawGuess: string, league
       if (milestone?.card) {
         const card = await grantCard(tx, { teamId: team.id, cardCode: milestone.card, source: 'STREAK', sourceRef: `streak:${userId}:${date}:${next.current}` });
         cardCode = card?.code ?? null;
+      }
+      // Acertar puede dejar caer además una carta al azar; el premio en dinero no cambia
+      if (won && !cardCode && s.wordle_card_chance > 0 && Math.random() * 100 < s.wordle_card_chance) {
+        const drop = await grantRandomCard(tx, { teamId: team.id, source: 'CHALLENGE', sourceRef: `wordle:${userId}:${date}` });
+        cardCode = drop?.code ?? null;
       }
     }
     await tx.dailyChallengeReward.create({

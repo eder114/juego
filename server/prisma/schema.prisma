@@ -809,14 +809,26 @@ model MarketAuditLog {
 // ───────────────────────────── Cartas potenciadoras ─────────────────────────────
 
 model PowerUpCard {
-  id                Int      @id @default(autoincrement())
-  code              String   @unique
-  name              String
-  description       String
-  effect            String // DOUBLE_POINTS | WEAKEN (ampliable)
-  rarity            String // COMMON | RARE | EPIC | LEGENDARY
-  effectValue       Int // DOUBLE_POINTS: multiplicador en % (200 = x2) · WEAKEN: % de puntos que se restan
-  target            String // OWN_PLAYER | RIVAL_PLAYER
+  id          Int    @id @default(autoincrement())
+  code        String @unique
+  name        String
+  description String
+  // Familia de la carta: BOOST | WEAKEN | DEFENSE | ECONOMY | TACTIC | LEGENDARY
+  category    String @default("BOOST")
+  // Qué hace: ver CARD_EFFECTS en domain/cards.ts
+  effect      String
+  rarity      String // COMMON | UNCOMMON | RARE | EPIC | LEGENDARY
+  // Valor principal del efecto; su significado depende de `effect` (puntos, % o dinero)
+  effectValue Int
+  // Cuándo se resuelve: INSTANT | PRE_GAMEWEEK | REACTIVE | POST_SCORING
+  activation  String @default("PRE_GAMEWEEK")
+  // A quién se aplica: ver CARD_TARGETS en domain/cards.ts
+  target      String
+  /**
+   * @deprecated se conserva por compatibilidad; el objetivo real lo define `target`
+   */
+  config      String @default("{}") // JSON con parámetros extra del efecto (umbrales, límites…)
+
   durationGameweeks Int      @default(1)
   maxPerGameweek    Int      @default(1) // cuántas cartas de este efecto puede activar un equipo por jornada
   isActive          Boolean  @default(true) // se puede activar
@@ -857,11 +869,19 @@ model CardActivation {
   gameweekId     Int
   effect         String
   effectValue    Int // copia del valor al activar: cambios posteriores del catálogo no afectan
-  targetPlayerId Int
+  // Nulos cuando la carta no apunta a un jugador concreto (equipo entero, dinero, escudos)
+  targetPlayerId Int?
   targetTeamId   Int
-  status         String    @default("ACTIVE") // ACTIVE | CANCELLED | APPLIED
+  // ACTIVE | CANCELLED | APPLIED | BLOCKED (lo paró un escudo rival) | CONSUMED (escudo gastado)
+  status         String    @default("ACTIVE")
   requestId      String    @unique // idempotencia frente a dobles envíos
   pointsDelta    Int       @default(0)
+  moneyDelta     Int       @default(0) // k£ abonados por cartas económicas
+  /**
+   * Activación que neutralizó a esta (escudo o antídoto)
+   */
+  blockedById    Int?
+  result         String    @default("{}") // JSON con el detalle de la resolución
   createdAt      DateTime  @default(now())
   cancelledAt    DateTime?
   appliedAt      DateTime?
@@ -874,6 +894,7 @@ model CardActivation {
   @@index([gameweekId, status])
   @@index([teamId, gameweekId])
   @@index([targetTeamId, gameweekId])
+  @@index([targetTeamId, gameweekId, effect])
   @@map("card_activations")
 }
 

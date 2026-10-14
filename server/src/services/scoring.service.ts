@@ -11,8 +11,8 @@ import { invalidateRankings } from './ranking.service';
 import { notifyMany } from './notification.service';
 import { evaluateGameweekAchievements, unlock } from './achievement.service';
 import { updatePricesForGameweek } from './price.service';
-import { applyCardModifiers } from '../domain/economy';
-import { cardModifiersForGameweek, finalizeCardsForGameweek } from './card.service';
+import { applyPlayerModifiers } from '../domain/cards';
+import { cardModifiersForGameweek, evaluatePostScoring, finalizeCardsForGameweek, postScoringActivations } from './card.service';
 import { coachPointsByClub, updateValuationsForGameweek } from './valuation.service';
 
 export async function loadRules(): Promise<RuleLike[]> {
@@ -83,8 +83,11 @@ export async function processGameweek(gameweekId: number, opts: { final: boolean
 
   // Modificadores: cartas activas de la jornada y puntos de entrenador (resultados reales terminados)
   const { byTeam: cardMods } = await cardModifiersForGameweek(gameweekId);
+  const postCards = await postScoringActivations(gameweekId);
   const coachPoints = await coachPointsByClub(gameweekId, settings);
   const cardDeltas = new Map<string, number>();
+  // Dinero que generan las cartas de post-cálculo; solo se abona en el cierre definitivo
+  const cardMoney = new Map<number, number>();
 
   const totalsByLineup = new Map<number, number>();
   for (const lineup of lineups) {
@@ -104,19 +107,36 @@ export async function processGameweek(gameweekId: number, opts: { final: boolean
       viceCaptainEnabled: settings.vice_captain_enabled,
       autoSubsEnabled: settings.auto_subs_enabled,
     });
-    // Orden: puntos base → cartas → capitán (applyCardModifiers documenta la precedencia)
+    // Orden: puntos base → cartas → capitán (applyPlayerModifiers documenta la precedencia)
     const mods = cardMods.get(lineup.teamId);
     let cardPoints = 0;
     const deltas = new Map<number, number>();
+    const finalPoints = new Map<number, number>();
     for (const e of result.entries) {
       const m = mods?.get(e.playerId);
+      const applied = applyPlayerModifiers(e.points, e.multiplier, m ?? [], settings.card_captain_stacking as 'MAX' | 'STACK');
+      finalPoints.set(e.playerId, applied.total);
       if (!m?.length) continue;
-      const applied = applyCardModifiers(e.points, e.multiplier, m, settings.card_captain_stacking as 'MAX' | 'STACK');
       deltas.set(e.playerId, applied.delta);
       cardDeltas.set(`${lineup.teamId}:${e.playerId}`, applied.delta);
       cardPoints += applied.delta;
     }
     const coach = lineup.coach?.clubId ? (coachPoints.get(lineup.coach.clubId) ?? 0) : 0;
+
+    // Cartas que se resuelven con los puntos ya calculados (apuestas, bonos por rendimiento, recuperación).
+    // Se recalculan en cada pasada a partir de los puntos, así que volver a puntuar no duplica nada.
+    let postPoints = 0;
+    for (const a of postCards.get(lineup.teamId) ?? []) {
+      const outcome = evaluatePostScoring(a, {
+        teamTotal: result.total + cardPoints + coach,
+        playerPoints: finalPoints,
+        pointsLost: Math.max(0, -cardPoints),
+      });
+      postPoints += outcome.points;
+      cardMoney.set(a.id, outcome.money);
+      if (outcome.points) cardDeltas.set(`${lineup.teamId}:${a.targetPlayerId ?? 0}`, (cardDeltas.get(`${lineup.teamId}:${a.targetPlayerId ?? 0}`) ?? 0) + outcome.points);
+    }
+    cardPoints += postPoints;
     const total = result.total + cardPoints + coach;
     totalsByLineup.set(lineup.id, total);
     await prisma.$transaction([
@@ -155,7 +175,7 @@ export async function processGameweek(gameweekId: number, opts: { final: boolean
       await evaluateGameweekAchievements(gameweekId, settings.captain_multiplier);
       await evaluateLeagueLeaders();
     }
-    await finalizeCardsForGameweek(gameweekId, cardDeltas);
+    await finalizeCardsForGameweek(gameweekId, cardDeltas, cardMoney);
     if (settings.auto_price_update && !locks.gameweek.pricesUpdated) await updatePricesForGameweek(gameweekId);
     // Valores de la economía de liga (independientes de los precios clásicos)
     await updateValuationsForGameweek(gameweekId);

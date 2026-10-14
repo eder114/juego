@@ -253,26 +253,82 @@ z          = (puntos − esperados) / escala
 
 Todos los parámetros se editan en Administración → Configuración → Valoración. La rareza se recalcula tras cada jornada con los percentiles combinados de valor, puntos de la temporada y forma reciente.
 
-## 6. Cartas
+## 6. Fantasy Cards
 
-- Cada carta es de un solo uso (`TeamCard`) y se activa para la próxima jornada **antes de su cierre** (`Gameweek.deadline`). Hasta el cierre se puede desactivar; después queda bloqueada.
-- **Idempotencia.** Cada activación lleva un `requestId` (UUID generado al abrir el formulario) y el paso de `AVAILABLE` a `ACTIVE` es condicional: un doble clic no gasta dos cartas.
-- **Límites.** Hay un máximo de cartas activas por jornada, un máximo por efecto y un máximo de cartas de presión por jugador rival. Las activaciones se serializan bloqueando la fila del equipo.
-- **Doble puntos.** Se usa sobre un jugador de la plantilla propia.
-- **Presión (-20 %).** Se usa sobre un jugador de un rival con el que se comparte una liga (sin contar la global). Solo resta puntos Fantasy positivos; las estadísticas reales no cambian.
-- **Obtención.** Por premios de racha, desafíos, eventos o concesión desde administración. No hay compra con dinero real.
+Cartas de un solo uso que crean decisiones estratégicas sin decidir la liga por sí solas. **El inventario
+es del EQUIPO**, y un equipo es un (usuario, liga): las cartas de una liga no se ven ni se usan en otra, y
+solo se puede atacar a rivales de la misma liga.
 
-### Orden de los modificadores (documentado y probado)
+### Categorías y rarezas
 
-1. Puntos base del jugador (motor de puntuación con estadísticas reales).
-2. Cartas de penalización (presión): un % de los puntos positivos, acumulable hasta el 100 %.
-3. Cartas de potenciación (doble puntos): se aplica el mayor multiplicador; no se acumulan entre sí.
-4. Capitán y reglas existentes. El ajuste `card_captain_stacking` decide qué pasa si el capitán tiene doble puntos:
-   - `MAX` (por defecto): se usa el mayor multiplicador, así que un capitán con doble puntos sigue siendo ×2 y no ×4.
-   - `STACK`: los multiplicadores se acumulan.
-5. Los suplentes que no entran no suman, tengan o no cartas.
+Seis familias —potenciadoras (azul), debilitadoras (rojo), defensivas (verde), económicas (dorado),
+tácticas (morado) y legendarias (negro y dorado)— con cinco rarezas independientes de la categoría:
+común, poco común, rara, épica y legendaria. El catálogo vive en `domain/cards.ts` y se sincroniza con la
+base al arrancar; la administración ajusta el equilibrio sin tocar código.
 
-Al cerrar la jornada, las activaciones pasan a `APPLIED` con su efecto en puntos y la carta a `USED`. Los rivales afectados reciben una notificación. Volver a procesar la jornada no duplica el efecto.
+### Cuándo se resuelve cada carta
+
+| Activación | Qué significa | Ejemplos |
+| --- | --- | --- |
+| `INSTANT` | En el acto | Patrocinador, Imperio económico |
+| `PRE_GAMEWEEK` | Queda ligada a la jornada y se resuelve al puntuar | Doble impacto, Mala racha, Once de gala |
+| `REACTIVE` | Espera a un evento compatible | Escudo, Inmunidad, Seguro de capitán |
+| `POST_SCORING` | Se evalúa con los puntos ya calculados | Apuesta arriesgada, Bono por victoria, Resurgimiento |
+
+### Política de acumulación (orden fijo y documentado)
+
+Sin un orden explícito, combinar un doble de puntos con una penalización y la capitanía daría resultados
+distintos según el azar. `applyPlayerModifiers` aplica siempre:
+
+1. Puntos oficiales del jugador (nunca se tocan sus estadísticas reales).
+2. Sumas y restas planas (`ADD`), que pueden dejar el total en negativo.
+3. Penalizaciones porcentuales, solo sobre puntos positivos y acumuladas hasta el 100 %.
+4. El **mejor** multiplicador: los multiplicadores no se acumulan entre sí.
+5. La capitanía, según `card_captain_stacking` (`MAX` o `STACK`). «Capitán maldito» recorta solo el extra
+   de la capitanía, nunca los puntos base.
+
+Todos los redondeos son `Math.round` en el mismo punto, así que `base + delta = total` siempre y la
+puntuación oficial se puede reconstruir. Volver a puntuar una jornada recalcula los modificadores desde
+cero: **no duplica puntos**, y el dinero lleva clave de idempotencia.
+
+### Ataques y defensas
+
+Al lanzar un ataque, el servidor busca una protección del defensor de la más específica a la más general:
+inmunidad del jugador → seguro del capitán → escudo de equipo. Si encuentra una, el ataque queda
+`BLOCKED`, la protección gasta una carga (Blindaje total tiene dos) y ambos mánagers reciben su aviso. El
+antídoto hace lo mismo pero a posteriori: anula un ataque que ya estaba encima.
+
+### Límites de equilibrio (Administración → Cartas)
+
+Cartas por equipo y jornada (3), potenciadores sobre un mismo jugador (1), ataques recibidos por equipo
+(2), ataques sobre un mismo jugador (1), legendarias por jornada (1) y tope de dinero por cartas en una
+jornada (£5M). Se comprueban dentro de la transacción que consume la carta, con las filas de los equipos
+bloqueadas, así que no se pueden superar con peticiones simultáneas.
+
+### Garantías
+
+- Activación idempotente: `requestId` único más el paso AVAILABLE → ACTIVE condicional. Un doble clic, un
+  reintento o una recarga no gastan dos cartas.
+- Si cualquier validación falla, la transacción se deshace: la carta sigue en el inventario y no hay
+  cargos a medias.
+- El navegador no decide nada: objetivo, límites, plazos y efectos se validan en el servidor.
+
+### Cómo se consiguen
+
+Hitos de racha de los desafíos diarios, una probabilidad configurable al acertar el Wordle
+(`wordle_card_chance`, que **no** sustituye al premio en dinero) y concesiones desde administración. La
+concesión es idempotente mediante `sourceRef`. No hay compras con dinero real.
+
+### Cartas desactivadas y por qué
+
+Cinco cartas existen en el catálogo pero no se pueden activar, y la interfaz explica el motivo en lugar de
+ofrecer un botón que no haría nada:
+
+| Carta | Motivo |
+| --- | --- |
+| Descuento de mercado | El mercado se resuelve por subasta: un descuento alteraría una puja ya hecha y perjudicaría al resto. |
+| Cambio de última hora · Plan maestro · El estratega | La alineación ya se puede cambiar sin límite hasta el cierre, así que no añadirían nada. |
+| Banquillo de oro | Falta exponer las sustituciones automáticas al motor de cartas. |
 
 ## 7. Desafío diario: Wordle de futbolistas
 
@@ -368,15 +424,15 @@ Cuando el backend reparte el equipo inicial, el usuario no entra directamente al
 
 ## 10. Pruebas
 
-`npm test` (servidor) ejecuta 97 pruebas:
+`npm test` (servidor) ejecuta 107 pruebas:
 
 - `tests/domain.test.ts`: las 21 pruebas anteriores de puntuación, alineaciones y precios.
-- `tests/economy.test.ts`: 28 pruebas unitarias de dominio.
+- `tests/economy.test.ts`: 33 pruebas unitarias de dominio.
   - Equipo inicial: 13 jugadores con la formación correcta, sin repetidos, ponderado y sin estrellas cuando su peso es 0.
   - Mercado: 10 jugadores sin duplicados y sin comprados, rareza, pity, diversidad y entre 1 y 2 entrenadores.
   - Rarezas y valoración: subida, bajada, límites, suavizado y elasticidad.
   - Zonas horarias y horario de verano, Wordle (evaluación, tildes y Ñ, nombre jugable de cada futbolista, premios), rachas, modificadores de cartas y puntos de entrenador.
-- `tests/economy.integration.test.ts`: 48 pruebas contra una copia de la base de datos real.
+- `tests/economy.integration.test.ts`: 53 pruebas contra una copia de la base de datos real.
   - Equipo inicial y £100M para cuatro mánagers, y propiedad única.
   - Ciclo único ante 5 peticiones simultáneas.
   - Pujas simultáneas: solo una se convierte en la oferta más alta y solo ella retiene dinero.
@@ -392,7 +448,9 @@ Cuando el backend reparte el equipo inicial, el usuario no entra directamente al
     longitud aunque no sea un jugador; un intento de otra longitud se rechaza sin gastar oportunidad; se acepta en
     minúsculas y con tildes; intentos simultáneos, 6 intentos como máximo, sin reinicio y premio único ante
     peticiones repetidas.
-  - Cartas: activación idempotente, carrera de activaciones, presión con límite y bloqueo tras el cierre.
+  - Cartas: activación idempotente, carrera de activaciones, ataque con límite por objetivo y por equipo,
+    bloqueo tras el cierre, un escudo que para un ataque y se consume, carta económica que paga una sola vez,
+    rechazo de ataques a otra liga y de cartas ajenas, e inventarios separados por liga.
   - Doble puntos aplicada dentro del motor de puntuación real, idempotente al reprocesar la jornada.
   - Valoración por jornada idempotente.
   - Salida de la partida y reinicio de la economía.

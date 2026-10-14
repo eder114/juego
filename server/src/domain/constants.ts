@@ -190,26 +190,7 @@ export const DEFAULT_STREAK_MILESTONES = [
 ];
 
 /** Catálogo inicial de cartas (el administrador puede editarlas o desactivarlas). */
-export const DEFAULT_CARDS = [
-  {
-    code: 'DOUBLE_POINTS',
-    name: 'Doble puntos',
-    description: 'Elige un jugador de tu plantilla antes del cierre: sus puntos Fantasy de la jornada se multiplican por 2.',
-    effect: 'DOUBLE_POINTS',
-    rarity: 'RARE',
-    effectValue: 200,
-    target: 'OWN_PLAYER',
-  },
-  {
-    code: 'PRESSURE',
-    name: 'Presión',
-    description: 'Elige un jugador de un rival de tu liga antes del cierre: pierde un porcentaje de sus puntos Fantasy positivos de la jornada. Sus estadísticas reales no cambian.',
-    effect: 'WEAKEN',
-    rarity: 'EPIC',
-    effectValue: 20,
-    target: 'RIVAL_PLAYER',
-  },
-] as const;
+export { CARD_CATALOG as DEFAULT_CARDS } from './cards';
 
 /** Configuración general editable desde el panel de administración. */
 export const SETTINGS_DEFS = {
@@ -322,8 +303,12 @@ export const SETTINGS_DEFS = {
     options: ['MAX', 'STACK'],
     hint: 'MAX: se aplica el mayor multiplicador (sin acumular) · STACK: se multiplican',
   },
-  card_max_active_per_gameweek: { value: 2, label: 'Cartas activas por equipo y jornada', group: 'Cartas', type: 'number', min: 0, max: 10 },
-  card_weaken_max_per_target: { value: 1, label: 'Cartas de presión por jugador rival y jornada', group: 'Cartas', type: 'number', min: 1, max: 5 },
+  card_max_active_per_gameweek: { value: 3, label: 'Cartas que puede usar un equipo por jornada', group: 'Cartas', type: 'number', min: 0, max: 10 },
+  card_weaken_max_per_target: { value: 1, label: 'Ataques sobre un mismo jugador por jornada', group: 'Cartas', type: 'number', min: 1, max: 5 },
+  card_max_boost_per_player: { value: 1, label: 'Potenciadores sobre un mismo jugador por jornada', group: 'Cartas', type: 'number', min: 1, max: 5 },
+  card_max_attacks_received: { value: 2, label: 'Ataques que puede recibir un equipo por jornada', group: 'Cartas', type: 'number', min: 1, max: 10 },
+  card_max_legendary_per_gameweek: { value: 1, label: 'Cartas legendarias por equipo y jornada', group: 'Cartas', type: 'number', min: 0, max: 5 },
+  card_money_cap_per_gameweek: { value: 5000, label: 'Tope de dinero por cartas en una jornada', group: 'Cartas', type: 'moneyk', min: 0, max: 100000 },
 
   challenge_timezone: { value: 'Europe/London', label: 'Zona horaria del reinicio diario', group: 'Desafíos diarios', type: 'timezone' },
   wordle_enabled: { value: true, label: 'Wordle diario activo', group: 'Desafíos diarios', type: 'boolean' },
@@ -346,6 +331,15 @@ export const SETTINGS_DEFS = {
     hint: 'Como intento se admite cualquier jugador real de la misma longitud, no solo estos',
   },
   streak_requires_win: { value: true, label: 'La racha solo cuenta los desafíos ganados', group: 'Desafíos diarios', type: 'boolean' },
+  wordle_card_chance: {
+    value: 20,
+    label: 'Probabilidad de ganar una carta al acertar el Wordle (%)',
+    group: 'Desafíos diarios',
+    type: 'number',
+    min: 0,
+    max: 100,
+    hint: 'Se suma al premio en dinero, no lo sustituye',
+  },
   streak_milestones: {
     value: JSON.stringify(DEFAULT_STREAK_MILESTONES),
     label: 'Premios por racha',

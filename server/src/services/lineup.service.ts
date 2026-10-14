@@ -14,7 +14,7 @@ import { BLOCKING_STATUSES, type PlayerStatus, type Position } from '../domain/c
 import { getSettings } from './settings.service';
 import { getEditableGameweek, getGameweekContext, getGameweekLocks } from './gameweek.service';
 import { aggFor, getPlayerAggregates, toPlayerDTO } from './player-stats.service';
-import { applyCardModifiers } from '../domain/economy';
+import { applyPlayerModifiers } from '../domain/cards';
 import { cardModifiersForGameweek } from './card.service';
 import { coachPointsByClub } from './valuation.service';
 import { resolveTeam } from './team.service';
@@ -189,7 +189,7 @@ async function buildLineupView(teamId: number, gameweekId: number, isOwner: bool
   if (scoring && cardMods) {
     for (const e of scoring.entries) {
       const m = cardMods.get(e.playerId);
-      if (m?.length) liveCardDelta.set(e.playerId, applyCardModifiers(e.points, e.multiplier, m, settings.card_captain_stacking as 'MAX' | 'STACK').delta);
+      if (m?.length) liveCardDelta.set(e.playerId, applyPlayerModifiers(e.points, e.multiplier, m, settings.card_captain_stacking as 'MAX' | 'STACK').delta);
     }
   }
   const liveCardPoints = [...liveCardDelta.values()].reduce((a, b) => a + b, 0);
@@ -224,7 +224,7 @@ async function buildLineupView(teamId: number, gameweekId: number, isOwner: bool
       multiplier: row?.isFinal ? (stored?.multiplier ?? 0) : (scored?.multiplier ?? (roleOf(p.id) === 'STARTER' ? 1 : 0)),
       autoSubIn: row?.isFinal ? !!stored?.autoSubIn : !!scored?.autoSubIn,
       autoSubOut: row?.isFinal ? !!stored?.autoSubOut : !!scored?.autoSubOut,
-      cards: (cardMods?.get(p.id) ?? []).map((m) => m.effect),
+      cards: (cardMods?.get(p.id) ?? []).map((m) => m.kind),
       cardDelta: row?.isFinal ? (stored?.cardDelta ?? 0) : (liveCardDelta.get(p.id) ?? 0),
     };
   });

@@ -827,6 +827,12 @@ describe.skipIf(!hasDb)('economía de liga (integración)', () => {
   });
 
   describe('cartas', () => {
+    /** Concede una carta del catálogo a un equipo (la fuente da igual: es una recompensa de prueba). */
+    const give = async (teamId: number, code: string) => {
+      const granted = await m.prisma.$transaction((tx) => m.cards.grantCard(tx, { teamId, cardCode: code, source: 'EVENT', sourceRef: `qa:${teamId}:${code}:${crypto.randomUUID()}` }));
+      if (!granted) throw new Error(`no se pudo conceder ${code}`);
+      return granted;
+    };
     let gwId = 0;
     it('activación antes del cierre, idempotente y de un solo uso', async () => {
       const a = await teamOf(users[0].id);
@@ -853,15 +859,87 @@ describe.skipIf(!hasDb)('economía de liga (integración)', () => {
       expect(await m.prisma.cardActivation.count({ where: { teamCardId: granted!.id, status: 'ACTIVE' } })).toBe(1);
     });
 
-    it('presión contra un rival de la liga y límite por jugador objetivo', async () => {
+    it('un ataque contra un rival de la liga, con límite por jugador objetivo', async () => {
       const [a, b, c] = [await teamOf(users[0].id), await teamOf(users[1].id), await teamOf(users[2].id)];
       const target = await m.prisma.fantasyTeamPlayer.findFirstOrThrow({ where: { teamId: a.id }, orderBy: { playerId: 'desc' } });
-      const cardB = await m.prisma.$transaction((tx) => m.cards.grantCard(tx, { teamId: b.id, cardCode: 'PRESSURE', source: 'EVENT', sourceRef: `qa:${b.id}:pressure` }));
-      const cardC = await m.prisma.$transaction((tx) => m.cards.grantCard(tx, { teamId: c.id, cardCode: 'PRESSURE', source: 'EVENT', sourceRef: `qa:${c.id}:pressure` }));
-      await m.cards.activateCard(users[1].id, { teamCardId: cardB!.id, targetPlayerId: target.playerId, targetTeamId: a.id, requestId: crypto.randomUUID() }, leagueId);
-      await expect(m.cards.activateCard(users[2].id, { teamCardId: cardC!.id, targetPlayerId: target.playerId, targetTeamId: a.id, requestId: crypto.randomUUID() }, leagueId)).rejects.toThrow(/bajo presión/);
+      const cardB = await give(b.id, 'BLACKOUT');
+      const cardC = await give(c.id, 'BLACKOUT');
+      await m.cards.activateCard(users[1].id, { teamCardId: cardB.id, targetPlayerId: target.playerId, targetTeamId: a.id, requestId: crypto.randomUUID() }, leagueId);
+      await expect(
+        m.cards.activateCard(users[2].id, { teamCardId: cardC.id, targetPlayerId: target.playerId, targetTeamId: a.id, requestId: crypto.randomUUID() }, leagueId),
+      ).rejects.toThrow(/bajo los efectos de un ataque/);
       const { byTeam } = await m.cards.cardModifiersForGameweek(gwId);
-      expect(byTeam.get(a.id)?.get(target.playerId)).toEqual([{ effect: 'WEAKEN', value: 20 }]);
+      expect(byTeam.get(a.id)?.get(target.playerId)).toEqual([{ kind: 'PENALTY_PCT', value: 50, activationId: expect.any(Number) }]);
+    });
+
+    it('no se puede atacar a un equipo de otra liga ni usar una carta ajena', async () => {
+      const [a, b] = [await teamOf(users[0].id), await teamOf(users[1].id)];
+      const fuera = await m.prisma.fantasyTeam.findFirstOrThrow({ where: { leagueId: { not: leagueId } } });
+      const target = await m.prisma.fantasyTeamPlayer.findFirstOrThrow({ where: { teamId: a.id } });
+      const card = await give(b.id, 'BAD_RUN');
+      await expect(
+        m.cards.activateCard(users[1].id, { teamCardId: card.id, targetPlayerId: target.playerId, targetTeamId: fuera.id, requestId: crypto.randomUUID() }, leagueId),
+      ).rejects.toThrow(/rivales de tu liga/);
+      // Y otro mánager no puede usar una carta que no es suya
+      await expect(
+        m.cards.activateCard(users[2].id, { teamCardId: card.id, targetPlayerId: target.playerId, targetTeamId: a.id, requestId: crypto.randomUUID() }, leagueId),
+      ).rejects.toThrow(/no está en tu inventario/);
+      // La carta sigue disponible: un intento fallido nunca la consume
+      expect((await m.prisma.teamCard.findUniqueOrThrow({ where: { id: card.id } })).status).toBe('AVAILABLE');
+    });
+
+    it('un escudo bloquea el ataque y se consume; el atacante se entera', async () => {
+      const [a, b] = [await teamOf(users[0].id), await teamOf(users[1].id)];
+      const shield = await give(a.id, 'SHIELD');
+      await m.cards.activateCard(users[0].id, { teamCardId: shield.id, requestId: crypto.randomUUID() }, leagueId);
+
+      const target = await m.prisma.fantasyTeamPlayer.findFirstOrThrow({ where: { teamId: a.id }, orderBy: { playerId: 'asc' } });
+      const attack = await give(b.id, 'BAD_RUN');
+      const res = await m.cards.activateCard(users[1].id, { teamCardId: attack.id, targetPlayerId: target.playerId, targetTeamId: a.id, requestId: crypto.randomUUID() }, leagueId);
+      expect(res.blocked).toBe(true);
+
+      const saved = await m.prisma.cardActivation.findUniqueOrThrow({ where: { id: res.activationId } });
+      expect(saved.status).toBe('BLOCKED');
+      expect(saved.blockedById).not.toBeNull();
+      // El escudo queda gastado y el ataque no genera ningún modificador
+      const used = await m.prisma.cardActivation.findFirstOrThrow({ where: { id: saved.blockedById! } });
+      expect(used.status).toBe('CONSUMED');
+      // Un ataque bloqueado no genera ningún modificador (el jugador puede tener otros de pruebas previas)
+      const { byTeam } = await m.cards.cardModifiersForGameweek(gwId);
+      const sobreElJugador = byTeam.get(a.id)?.get(target.playerId) ?? [];
+      expect(sobreElJugador.some((mod) => mod.activationId === res.activationId)).toBe(false);
+    });
+
+    it('una carta económica abona el dinero una sola vez y queda registrada', async () => {
+      const a = await teamOf(users[3].id);
+      const before = (await m.prisma.fantasyTeam.findUniqueOrThrow({ where: { id: a.id } })).wallet;
+      const card = await give(a.id, 'SPONSOR');
+      const requestId = crypto.randomUUID();
+      const res = await m.cards.activateCard(users[3].id, { teamCardId: card.id, requestId }, leagueId);
+      expect(res.money).toBe(500);
+      // Repetir la misma petición no vuelve a pagar
+      const again = await m.cards.activateCard(users[3].id, { teamCardId: card.id, requestId }, leagueId);
+      expect(again.duplicate).toBe(true);
+      const after = (await m.prisma.fantasyTeam.findUniqueOrThrow({ where: { id: a.id } })).wallet;
+      expect(after).toBe(before + 500);
+      expect(await m.prisma.transaction.count({ where: { teamId: a.id, reference: `card-activation:${res.activationId}` } })).toBe(1);
+      expect((await m.prisma.teamCard.findUniqueOrThrow({ where: { id: card.id } })).status).toBe('USED');
+    });
+
+    it('el inventario es de cada equipo: una carta de otra liga no se ve ni se usa', async () => {
+      const owner = users[0].id;
+      const aquí = await teamOf(owner, leagueId);
+      const global = await m.prisma.league.findFirstOrThrow({ where: { type: 'GLOBAL', isSystem: true } });
+      const allí = await teamOf(owner, global.id);
+      const card = await give(allí.id, 'HOT_STREAK');
+
+      const vista = await m.cards.getCards(owner, leagueId);
+      expect(vista.inventory.some((i) => i.id === card.id)).toBe(false);
+      // Y aunque se pida por id, el servidor comprueba que la carta sea del equipo de ESA liga
+      await expect(
+        m.cards.activateCard(owner, { teamCardId: card.id, targetPlayerId: 1, requestId: crypto.randomUUID() }, leagueId),
+      ).rejects.toThrow(/no está en tu inventario/);
+      expect(aquí.id).not.toBe(allí.id);
     });
 
     it('tras el cierre de la jornada la carta ya no se puede modificar', async () => {
