@@ -31,6 +31,7 @@ import { usePublicConfig } from '../../hooks/usePublicConfig';
 import type { AppNotification } from '../../types';
 import { LoadingBlock } from '../ui';
 import { BrandLogo } from '../brand/BrandLogo';
+import { LeagueSwitcher, leagueLabel } from './LeagueSwitcher';
 
 const NAV = [
   { to: '/dashboard', label: 'Inicio', icon: House },
@@ -149,7 +150,7 @@ function NotificationBell() {
 
 export default function AppLayout() {
   const { user, logout } = useAuth();
-  const { activeLeagueId, activeTeam, teams, setActiveLeague } = useLeague();
+  const { activeTeam, teams } = useLeague();
   const { data: config } = usePublicConfig();
   const [moreOpen, setMoreOpen] = useState(false);
   const location = useLocation();
@@ -199,24 +200,7 @@ export default function AppLayout() {
             </NavLink>
           ))}
         </nav>
-        {teams.length > 1 && (
-          <div className="mx-5 mb-3">
-            <label className="block">
-              <span className="label mb-1 block text-white/80">Liga activa</span>
-              <select
-                value={activeLeagueId ?? ''}
-                onChange={(e) => setActiveLeague(Number(e.target.value))}
-                className="h-10 w-full truncate rounded-xl border border-white/25 bg-white/[0.12] px-3 text-sm font-semibold text-white focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pitch-400"
-              >
-                {teams.map((t) => (
-                  <option key={t.id} value={t.leagueId ?? ''} className="bg-ink-800">
-                    {t.league?.type === 'GLOBAL' ? 'Liga global' : (t.league?.name ?? t.name)}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-        )}
+        <LeagueSwitcher className="mx-5 mb-3 border-t border-white/[0.12] pt-3" />
         {user && (
           <div className="mx-5 mb-5 flex items-center gap-2 rounded-2xl border-l-[3px] border-white/25 bg-white/[0.12] py-3 pl-3 pr-2">
             <Link to="/profile" className="flex min-w-0 flex-1 items-center gap-3" title="Mi perfil">
@@ -248,22 +232,15 @@ export default function AppLayout() {
             <span className="text-sm text-white/80">Premier League</span>
           </p>
           <div className="flex items-center gap-2 sm:gap-3">
-            {teams.length > 1 && (
-              <label className="hidden items-center gap-2 sm:flex">
-                <span className="sr-only">Liga activa</span>
-                <select
-                  value={activeLeagueId ?? ''}
-                  onChange={(e) => setActiveLeague(Number(e.target.value))}
-                  title="Cada liga tiene su propio equipo"
-                  className="h-10 max-w-44 truncate rounded-lg border border-white/15 bg-[#101d25]/90 px-3 text-sm font-semibold text-white transition hover:bg-[#15272f] focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pitch-400"
-                >
-                  {teams.map((t) => (
-                    <option key={t.id} value={t.leagueId ?? ''} className="bg-ink-800">
-                      {t.league?.type === 'GLOBAL' ? 'Liga global' : (t.league?.name ?? t.name)}
-                    </option>
-                  ))}
-                </select>
-              </label>
+            {activeTeam && (
+              <Link
+                to="/leagues"
+                title="Liga en la que estás jugando. Puedes cambiarla desde el menú."
+                className="hidden h-10 max-w-48 items-center gap-2 rounded-lg bg-[#101d25]/90 px-3.5 text-sm transition hover:bg-[#15272f] sm:flex"
+              >
+                <Trophy aria-hidden className="size-4 shrink-0 text-lime-glow" />
+                <span className="truncate font-semibold text-white">{leagueLabel(activeTeam)}</span>
+              </Link>
             )}
             {activeTeam && (
               <Link
@@ -319,22 +296,7 @@ export default function AppLayout() {
                 <X className="size-5" />
               </button>
             </div>
-            {teams.length > 1 && (
-              <label className="mb-3 block">
-                <span className="label mb-1 block text-slate-400">Liga activa</span>
-                <select
-                  value={activeLeagueId ?? ''}
-                  onChange={(e) => setActiveLeague(Number(e.target.value))}
-                  className="h-11 w-full truncate rounded-2xl border border-white/[0.08] bg-white/[0.04] px-3 text-sm font-semibold text-white focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pitch-400"
-                >
-                  {teams.map((t) => (
-                    <option key={t.id} value={t.leagueId ?? ''} className="bg-ink-800">
-                      {t.league?.type === 'GLOBAL' ? 'Liga global' : (t.league?.name ?? t.name)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
+            <LeagueSwitcher className="mb-3" onPick={() => setMoreOpen(false)} />
             <div className="grid grid-cols-3 gap-2">
               {[...navItems, { to: '/profile', label: 'Perfil', icon: User }].map(({ to, label, icon: Icon }) => (
                 <NavLink key={to} to={to} className={({ isActive }) => clsx('flex flex-col items-center gap-2 rounded-2xl border p-3 text-center text-xs font-semibold', isActive ? 'border-pitch-500/40 bg-pitch-500/10 text-pitch-300' : 'border-white/[0.06] bg-white/[0.03] text-slate-300')}>

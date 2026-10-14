@@ -38,9 +38,9 @@ const clean = (raw: string) =>
     .replace(/[^A-ZÑ]/g, '');
 
 /**
- * Desafío diario: un Wordle clásico cuyo diccionario son apellidos de futbolistas reales. Todo el estado
- * (intentos, fecha, victoria, premio, racha) y la validez de cada nombre los decide el servidor: el
- * navegador solo muestra lo que recibe y envía lo que el usuario escribe.
+ * Desafío diario: un Wordle clásico en el que la palabra a adivinar es el apellido de un futbolista real.
+ * Como intento vale cualquier palabra de esa longitud. Todo el estado (intentos, fecha, victoria, premio,
+ * racha) lo decide el servidor: el navegador solo muestra lo que recibe y envía lo que se escribe.
  */
 export default function Challenges() {
   const qc = useQueryClient();
@@ -131,8 +131,8 @@ export default function Challenges() {
             ) : !showBoard ? (
               <div className="flex flex-col items-center gap-4 py-6 text-center">
                 <p className="max-w-md text-sm text-slate-300">
-                  Adivina el futbolista del día en {wordle.maxAttempts} intentos. Escribe el apellido de un jugador real de {wordle.wordLength} letras: verde, letra en
-                  su sitio · amarillo, está en otra posición · gris, no está. Todos los mánagers juegan el mismo jugador.
+                  Adivina el futbolista del día en {wordle.maxAttempts} intentos. Escribe cualquier palabra de {wordle.wordLength} letras: verde, letra en su
+                  sitio · amarillo, está en otra posición · gris, no está. Todos los mánagers juegan el mismo jugador.
                 </p>
                 {!wordle.hasTeam && <p className="text-sm text-amber-200">Crea tu equipo para cobrar el premio.</p>}
                 <Button size="lg" onClick={() => setPlaying(true)}>Jugar</Button>
@@ -161,8 +161,8 @@ export default function Challenges() {
                           value={input}
                           onChange={(e) => setInput(clean(e.target.value).slice(0, wordle.wordLength))}
                           disabled={!canType}
-                          placeholder="Escribe un jugador..."
-                          aria-label={`Escribe el apellido de un jugador de ${wordle.wordLength} letras`}
+                          placeholder="Escribe una palabra..."
+                          aria-label={`Escribe una palabra de ${wordle.wordLength} letras`}
                           autoComplete="off"
                           autoCorrect="off"
                           autoCapitalize="characters"
@@ -175,7 +175,7 @@ export default function Challenges() {
                         </Button>
                       </form>
                     )}
-                    {playing && <p className="-mt-2 text-center text-xs text-slate-500">Solo se aceptan apellidos de futbolistas reales de {wordle.wordLength} letras.</p>}
+                    {playing && <p className="-mt-2 text-center text-xs text-slate-500">Vale cualquier palabra de {wordle.wordLength} letras; la solución es el apellido de un futbolista.</p>}
                   </>
                 )}
               </div>

@@ -5,12 +5,11 @@ import { isPlayableWord, normalizeWord, wordleNameFrom } from '../domain/economy
 import { getSettings } from './settings.service';
 
 /**
- * Diccionario del Wordle: nombres de futbolistas reales
- * ─────────────────────────────────────────────────────
- * El juego sigue siendo un Wordle clásico (verde / amarillo / gris); lo único que cambia es que las
- * palabras admitidas son EXCLUSIVAMENTE apellidos futbolísticos de jugadores de la base de datos, en una
- * sola palabra (`Player.wordleName`). Nunca se aceptan palabras corrientes ni nombres completos, y la
- * comprobación vive solo en el servidor: da igual lo que envíe el navegador.
+ * Catálogo de futbolistas del Wordle
+ * ──────────────────────────────────
+ * El juego es un Wordle clásico (verde / amarillo / gris) y como intento vale cualquier palabra de la
+ * longitud del día. Lo único que sale de aquí es la RESPUESTA: el apellido futbolístico de un jugador
+ * real de la base de datos, en una sola palabra (`Player.wordleName`).
  */
 
 /** Jugadores que pueden entrar en el Wordle: reales, en activo y de un club de la temporada. */
@@ -42,15 +41,6 @@ export async function rebuildPlayerWordleNames() {
     updated++;
   }
   return { players: all.length, updated };
-}
-
-/**
- * ¿Es este texto el nombre de un jugador válido para el Wordle? Se compara ya normalizado (mayúsculas,
- * sin tildes ni signos), así que «mbappé», «MBAPPE» y «Mbappe» son la misma entrada.
- */
-export async function isPlayerWord(word: string) {
-  if (!word) return false;
-  return (await prisma.player.count({ where: { ...ELIGIBLE, wordleName: word } })) > 0;
 }
 
 /** Cuántos nombres distintos hay para cada longitud (lo usa la administración y la elección del día). */

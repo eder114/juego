@@ -12,7 +12,7 @@ import {
   wordleReward,
   type LetterState,
 } from '../domain/economy';
-import { dictionarySizes, isPlayerWord, normalizeGuess, pickDailyWord, revealPlayer } from './wordle.service';
+import { dictionarySizes, normalizeGuess, pickDailyWord, revealPlayer } from './wordle.service';
 import { getSettings, streakMilestones, wordleRewards } from './settings.service';
 import { changeWallet, creditClassicBudget, isUniqueViolation } from './economy.service';
 import { grantCard } from './card.service';
@@ -22,12 +22,13 @@ import { findTeam } from './team.service';
  * Desafíos diarios
  * ────────────────
  * Arquitectura común (DailyChallenge / DailyChallengeAttempt / DailyChallengeReward / DailyStreak) para cualquier
- * tipo de desafío; hoy existe WORDLE, un Wordle clásico cuyo diccionario son nombres de futbolistas reales
- * (ver `wordle.service`). Reglas que garantiza el servidor:
+ * tipo de desafío; hoy existe WORDLE: un Wordle clásico en el que la RESPUESTA del día es el apellido de
+ * un futbolista real (ver `wordle.service`), mientras que como intento vale cualquier palabra de esa misma
+ * longitud. Reglas que garantiza el servidor:
  *  - La fecha del desafío la calcula el servidor en la zona horaria configurada (el reloj del navegador no cuenta).
  *  - Una partida por usuario, fecha y tipo (restricción única). Recargar, cerrar sesión o repetir peticiones no la reinicia.
- *  - Solo se admiten intentos que sean el nombre de un jugador real de la misma longitud; una palabra
- *    corriente se rechaza y NO gasta intento. La comprobación es del servidor: el navegador no decide nada.
+ *  - Un intento debe tener exactamente las letras del día; si no, se rechaza y NO gasta oportunidad.
+ *    La comprobación es del servidor: el navegador no decide nada.
  *  - Cada intento se registra con compare-and-set sobre el nº de intentos: dos peticiones simultáneas no cuentan doble.
  *  - La palabra solo se envía al cliente cuando la partida termina. La recompensa es única por partida.
  */
@@ -134,9 +135,10 @@ export async function submitWordleGuess(userId: string, rawGuess: string, league
   const answer = secretOf(challenge).word;
   const length = lengthOf(challenge);
 
-  // Estas dos comprobaciones van ANTES de tocar la partida: un intento inválido no gasta oportunidades
-  if (!isPlayableWord(guess, length)) throw badRequest(`El jugador de hoy tiene ${length} letras`);
-  if (!(await isPlayerWord(guess))) throw badRequest('Ese nombre no corresponde a un jugador válido.');
+  // Wordle clásico: vale CUALQUIER palabra de la longitud del día, sea o no un futbolista. El catálogo
+  // de jugadores solo decide la respuesta. La comprobación va antes de tocar la partida, así que un
+  // intento con la longitud equivocada no gasta oportunidades.
+  if (!isPlayableWord(guess, length)) throw badRequest(`La palabra de hoy tiene ${length} letras`);
 
   let attempt = await prisma.dailyChallengeAttempt.findUnique({ where: { userId_challengeDate_type: { userId, challengeDate: date, type: TYPE } } });
   if (!attempt) {

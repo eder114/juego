@@ -743,46 +743,37 @@ describe.skipIf(!hasDb)('economía de liga (integración)', () => {
       expect(await m.prisma.player.count({ where: { wordleName: answer, isActive: true } })).toBeGreaterThan(0);
     });
 
-    it('una palabra corriente se rechaza y NO gasta intento', async () => {
+    it('acepta una palabra corriente que no es ningún futbolista (Wordle clásico)', async () => {
       const user = users[3].id;
       const { length } = await answerOf();
       const before = await m.challenges.getWordleState(user, leagueId);
-      // Palabras corrientes con EXACTAMENTE la longitud del día, más dos rellenos imposibles
+      // Palabras con EXACTAMENTE la longitud del día que no son nombres de jugador
       const comunes = ['CASA', 'HOLA', 'PERA', 'CASAS', 'PERRO', 'MUNDO', 'BALON', 'CAMPO', 'FUTBOL', 'CASITA', 'PELOTAS', 'CAMISAS', 'ESTADIOS', 'PELOTAZO'];
       const candidatas = [...comunes.filter((w) => w.length === length), 'Z'.repeat(length), 'QXJVWKZY'.slice(0, length)];
       const reales = new Set(
         (await m.prisma.player.findMany({ where: { wordleName: { in: candidatas } }, select: { wordleName: true } })).map((x) => x.wordleName!),
       );
-      const fakes = [...new Set(candidatas)].filter((w) => !reales.has(w));
-      expect(fakes.length).toBeGreaterThan(0);
-      for (const w of fakes) {
-        await expect(m.challenges.submitWordleGuess(user, w, leagueId)).rejects.toThrow(/no corresponde a un jugador válido/i);
-      }
-      const after = await m.challenges.getWordleState(user, leagueId);
-      expect(after.attemptsUsed).toBe(before.attemptsUsed);
-      expect(after.guesses).toHaveLength(before.guesses.length);
+      const palabra = [...new Set(candidatas)].find((w) => !reales.has(w));
+      expect(palabra).toBeTruthy();
+
+      const state = await m.challenges.submitWordleGuess(user, palabra!, leagueId);
+      expect(state.attemptsUsed).toBe(before.attemptsUsed + 1);
+      expect(state.guesses.at(-1)?.word).toBe(palabra);
+      expect(state.guesses.at(-1)?.result).toHaveLength(length);
     });
 
-    it('un nombre completo o de otra longitud tampoco vale', async () => {
+    it('un intento con otra longitud se rechaza y NO gasta oportunidad', async () => {
       const user = users[3].id;
-      const { answer, length } = await answerOf();
-      const full = await m.prisma.player.findFirstOrThrow({ where: { displayName: { contains: ' ' }, isActive: true }, select: { displayName: true } });
-      await expect(m.challenges.submitWordleGuess(user, full.displayName, leagueId)).rejects.toThrow();
-      const otherLength = await m.prisma.player.findFirst({
-        where: { isActive: true, club: { isActive: true }, NOT: { wordleName: null } },
-        select: { wordleName: true },
-        orderBy: { marketValue: 'desc' },
-      });
-      const distinta = (await m.prisma.player.findMany({ where: { isActive: true, NOT: { wordleName: null } }, select: { wordleName: true } }))
-        .map((x) => x.wordleName!)
-        .find((w) => w.length !== length);
-      expect(otherLength).toBeTruthy();
-      if (distinta) await expect(m.challenges.submitWordleGuess(user, distinta, leagueId)).rejects.toThrow(new RegExp(`${length} letras`));
-      expect((await m.challenges.getWordleState(user, leagueId)).attemptsUsed).toBe(0);
-      expect(answer).toBeTruthy();
+      const { length } = await answerOf();
+      const before = (await m.challenges.getWordleState(user, leagueId)).attemptsUsed;
+      // Un nombre completo (con espacio) se normaliza y casi nunca mide lo mismo; además se prueba a mano
+      for (const corta of ['A'.repeat(length + 1), 'A'.repeat(Math.max(1, length - 1))]) {
+        await expect(m.challenges.submitWordleGuess(user, corta, leagueId)).rejects.toThrow(new RegExp(`${length} letras`));
+      }
+      expect((await m.challenges.getWordleState(user, leagueId)).attemptsUsed).toBe(before);
     });
 
-    it('acepta el nombre en minúsculas y con tildes (se normaliza en el servidor)', async () => {
+    it('acepta el intento en minúsculas y con tildes (se normaliza en el servidor)', async () => {
       const user = users[3].id;
       const { answer, length } = await answerOf();
       const name = await otherPlayer(answer, length);

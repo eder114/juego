@@ -306,10 +306,9 @@ arrancar y después de cada importación, así que los fichajes nuevos entran so
   (`DailyChallenge (WORDLE, fecha)`), evitando repetir los recientes. La respuesta sale de los futbolistas más
   conocidos (los de mayor valor, hasta `wordle_answer_pool`) para que sea adivinable; **la longitud del día es la
   de ese jugador**, dentro de los límites configurados.
-- **Qué se acepta como intento.** Cualquier `wordleName` de un jugador real, en activo y de un club de la
-  temporada, **con exactamente las letras del día**. Una palabra corriente (`CASAS`, `PERRO`, `FUTBOL`) se
-  rechaza con *«Ese nombre no corresponde a un jugador válido.»* y **no gasta intento**; un nombre completo
-  (`ERLINGHAALAND`) tampoco vale. La comprobación es solo del servidor: llamar a la API a mano no la salta.
+- **Qué se acepta como intento.** Wordle clásico: **cualquier palabra con exactamente las letras del día**,
+  sea un futbolista o no (`CASAS`, `PERRO`, `FUTBOL`…). El catálogo de jugadores solo decide la respuesta.
+  Un intento con otra longitud se rechaza y **no gasta oportunidad**. La comprobación es del servidor.
 - **Normalización.** Lo escrito se pasa a mayúsculas, se le quitan tildes, espacios y signos y se conserva la Ñ,
   así que `mbappé`, `MBAPPE` y `Mbappe` son el mismo intento.
 - **Sin teclado virtual.** El usuario escribe el nombre en un campo de texto («Escribe un jugador…») y envía con
@@ -389,9 +388,10 @@ Cuando el backend reparte el equipo inicial, el usuario no entra directamente al
     cobro, generación automática del mercado siguiente y el mismo jugador subastado en otra liga con presupuestos
     independientes.
   - Venta con enfriamiento.
-  - Wordle: la respuesta es un futbolista real y el tablero tiene sus letras; una palabra corriente se rechaza sin
-    gastar intento; un nombre completo o de otra longitud tampoco vale; se acepta en minúsculas y con tildes;
-    intentos simultáneos, 6 intentos como máximo, sin reinicio y premio único ante peticiones repetidas.
+  - Wordle: la respuesta es un futbolista real y el tablero tiene sus letras; se acepta cualquier palabra de esa
+    longitud aunque no sea un jugador; un intento de otra longitud se rechaza sin gastar oportunidad; se acepta en
+    minúsculas y con tildes; intentos simultáneos, 6 intentos como máximo, sin reinicio y premio único ante
+    peticiones repetidas.
   - Cartas: activación idempotente, carrera de activaciones, presión con límite y bloqueo tras el cierre.
   - Doble puntos aplicada dentro del motor de puntuación real, idempotente al reprocesar la jornada.
   - Valoración por jornada idempotente.
