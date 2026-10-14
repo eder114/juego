@@ -2,8 +2,7 @@ import { Link } from 'react-router-dom';
 import { Check, Plus, Trophy } from 'lucide-react';
 import clsx from 'clsx';
 import { useLeague } from '../../context/LeagueContext';
-import { money, moneyK } from '../../lib/format';
-import { leagueLabel } from '../layout/LeagueSwitcher';
+import { leagueLabel, money, moneyK } from '../../lib/format';
 import { DashCard } from './DashCard';
 
 /**

@@ -28,6 +28,10 @@ export const RARITY_META: Record<string, { label: string; chip: string; ring: st
   LEGENDARY: { label: 'Legendaria', chip: 'bg-amber-300/20 text-amber-200 ring-amber-300/60', ring: 'ring-amber-300/80', text: 'text-amber-200' },
 };
 
+/** Nombre con el que se muestra la liga de un equipo. */
+export const leagueLabel = (t: { name: string; league: { name: string; type: string } | null }) =>
+  t.league?.type === 'GLOBAL' ? 'Liga global' : (t.league?.name ?? t.name);
+
 /** Familia de la carta: color, nombre y acento, según la especificación de Fantasy Cards. */
 export const CARD_CATEGORY_META: Record<string, { label: string; chip: string; ring: string; text: string; glow: string }> = {
   BOOST: { label: 'Potenciadora', chip: 'bg-sky-500/20 text-sky-200 ring-sky-400/40', ring: 'ring-sky-400/50', text: 'text-sky-200', glow: 'from-sky-500/20' },

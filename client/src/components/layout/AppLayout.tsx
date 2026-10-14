@@ -26,12 +26,11 @@ import clsx from 'clsx';
 import { useAuth } from '../../context/AuthContext';
 import { useLeague } from '../../context/LeagueContext';
 import { api } from '../../lib/api';
-import { initials, money, moneyK, relativeTime } from '../../lib/format';
+import { initials, leagueLabel, money, moneyK, relativeTime } from '../../lib/format';
 import { usePublicConfig } from '../../hooks/usePublicConfig';
 import type { AppNotification } from '../../types';
 import { LoadingBlock } from '../ui';
 import { BrandLogo } from '../brand/BrandLogo';
-import { LeagueSwitcher, leagueLabel } from './LeagueSwitcher';
 
 const NAV = [
   { to: '/dashboard', label: 'Inicio', icon: House },
@@ -200,7 +199,6 @@ export default function AppLayout() {
             </NavLink>
           ))}
         </nav>
-        <LeagueSwitcher className="mx-5 mb-3 border-t border-white/[0.12] pt-3" />
         {user && (
           <div className="mx-5 mb-5 flex items-center gap-2 rounded-2xl border-l-[3px] border-white/25 bg-white/[0.12] py-3 pl-3 pr-2">
             <Link to="/profile" className="flex min-w-0 flex-1 items-center gap-3" title="Mi perfil">
@@ -296,7 +294,6 @@ export default function AppLayout() {
                 <X className="size-5" />
               </button>
             </div>
-            <LeagueSwitcher className="mb-3" onPick={() => setMoreOpen(false)} />
             <div className="grid grid-cols-3 gap-2">
               {[...navItems, { to: '/profile', label: 'Perfil', icon: User }].map(({ to, label, icon: Icon }) => (
                 <NavLink key={to} to={to} className={({ isActive }) => clsx('flex flex-col items-center gap-2 rounded-2xl border p-3 text-center text-xs font-semibold', isActive ? 'border-pitch-500/40 bg-pitch-500/10 text-pitch-300' : 'border-white/[0.06] bg-white/[0.03] text-slate-300')}>
