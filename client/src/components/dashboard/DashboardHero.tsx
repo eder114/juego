@@ -36,11 +36,11 @@ export function TeamSummary({ data, managerName, className }: { data: DashboardD
 }
 
 /** Próxima alineación: jornada editable, cuenta atrás hasta el cierre y acceso directo a alinear. */
-export function NextLineup({ gameweek }: { gameweek: NonNullable<DashboardData['editableGameweek']> }) {
+export function NextLineup({ gameweek, className }: { gameweek: NonNullable<DashboardData['editableGameweek']>; className?: string }) {
   useTick();
   const left = countdown(gameweek.deadline);
   return (
-    <section aria-label="Próxima alineación" className="dash-card flex flex-wrap items-center gap-4 p-5 sm:px-7 sm:py-6">
+    <section aria-label="Próxima alineación" className={clsx('dash-card flex flex-wrap items-center gap-4 p-5 sm:px-7 sm:py-6', className)}>
       <span className="grid size-12 shrink-0 place-items-center rounded-xl bg-[#0c141b]/85 text-white">
         <CalendarDays aria-hidden className="size-6" />
       </span>

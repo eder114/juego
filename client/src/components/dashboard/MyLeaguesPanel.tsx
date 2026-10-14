@@ -27,7 +27,8 @@ export function MyLeaguesPanel({ className }: { className?: string }) {
           {teams.length > 1 ? 'Otra liga' : 'Unirse a una liga'}
         </Link>
       }
-      bodyClassName="grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
+      // Una liga por fila: la tarjeta vive en una columna estrecha y los nombres largos tienen que leerse
+      bodyClassName="grid gap-2.5 2xl:grid-cols-2"
     >
       {teams.map((t) => {
         const active = t.leagueId === activeLeagueId;

@@ -47,9 +47,18 @@ export default function Dashboard() {
   const fmtMoney = data.economyVersion === 2 ? moneyK : money;
   return (
     <div className="space-y-5 sm:space-y-7">
+      {/*
+        Orden: nombre del equipo → tus ligas → próxima alineación. En móvil se apila en ese mismo orden;
+        en escritorio las ligas quedan justo debajo del nombre y la alineación ocupa la columna derecha.
+      */}
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,32rem)]">
-        <TeamSummary data={data} managerName={user?.managerName} className={data.editableGameweek ? undefined : 'xl:col-span-2'} />
-        {data.editableGameweek && <NextLineup gameweek={data.editableGameweek} />}
+        <TeamSummary
+          data={data}
+          managerName={user?.managerName}
+          className={data.editableGameweek ? 'xl:col-start-1 xl:row-start-1' : 'xl:col-span-2'}
+        />
+        <MyLeaguesPanel className={data.editableGameweek ? 'xl:col-start-1 xl:row-start-2' : undefined} />
+        {data.editableGameweek && <NextLineup gameweek={data.editableGameweek} className="xl:col-start-2 xl:row-start-1 xl:row-span-2" />}
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:gap-5 md:grid-cols-3 xl:grid-cols-5">
@@ -88,9 +97,6 @@ export default function Dashboard() {
       </div>
 
       <AlertBanners alerts={data.alerts} />
-
-      {/* Las ligas del mánager, para cambiar de equipo sin salir de Inicio */}
-      <MyLeaguesPanel />
 
       <div className="grid gap-5 lg:grid-cols-3">
         <HistoryPanel history={data.history} />
