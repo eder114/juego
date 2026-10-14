@@ -10,6 +10,7 @@ import { MovementIndicator } from '../components/sport';
 import { DashEmpty, DashError } from '../components/dashboard/DashCard';
 import { AlertBanners, NextLineup, TeamSummary } from '../components/dashboard/DashboardHero';
 import { FeaturedPlayersPanel, HistoryPanel, LeadersPanel, NewsPanel, NextFixturePanel } from '../components/dashboard/DashboardPanels';
+import { MyLeaguesPanel } from '../components/dashboard/MyLeaguesPanel';
 import { DashboardSkeleton } from '../components/dashboard/DashboardSkeleton';
 import type { DashboardData } from '../components/dashboard/types';
 
@@ -87,6 +88,9 @@ export default function Dashboard() {
       </div>
 
       <AlertBanners alerts={data.alerts} />
+
+      {/* Las ligas del mánager, para cambiar de equipo sin salir de Inicio */}
+      <MyLeaguesPanel />
 
       <div className="grid gap-5 lg:grid-cols-3">
         <HistoryPanel history={data.history} />
